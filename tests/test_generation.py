@@ -3,6 +3,7 @@ import math
 import re
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import TypedDict
 
 import numpy as np
 import pytest
@@ -436,6 +437,93 @@ def test_different_seed_changes_cp_data(tmp_path: Path) -> None:
     first_values = first.lots[0].wafers[0].values["CP_VTHN"]
     second_values = second.lots[0].wafers[0].values["CP_VTHN"]
     assert not np.array_equal(first_values, second_values)
+
+
+class _CsvFormatLayout(TypedDict):
+    metadata_keys: list[str]
+    test_items_header: list[str]
+    bin_definitions_header: list[str]
+    test_data_prefix: list[str]
+
+
+# The emitted csv_format_version selects the contract. Any change to these
+# block layouts must bump the version and add a new entry here; keeping the
+# literals independent of the implementation constants is the point.
+_CSV_FORMAT_LAYOUTS: dict[str, _CsvFormatLayout] = {
+    "2": {
+        "metadata_keys": [
+            "csv_format_version",
+            "scenario_schema_version",
+            "phase",
+            "lot_id",
+            "product",
+            "device_family",
+            "process_node",
+            "fab",
+            "test_program",
+            "tester_type",
+            "exec_type",
+            "exec_version",
+            "generated_at",
+            "seed",
+            "scenario_sha256",
+            "wafer_id",
+            "lot_die_count",
+            "lot_pass_count",
+            "lot_yield",
+            "diameter_mm",
+            "die_size_x_mm",
+            "die_size_y_mm",
+            "edge_exclusion_mm",
+            "notch",
+            "cp_sites",
+            "die_count",
+            "pass_count",
+            "yield",
+        ],
+        "test_items_header": [
+            "test_num",
+            "item_id",
+            "unit",
+            "typical",
+            "lsl",
+            "usl",
+            "description",
+        ],
+        "bin_definitions_header": [
+            "bin_type",
+            "bin_number",
+            "bin_name",
+            "pass_fail",
+            "hard_bin",
+            "description",
+        ],
+        "test_data_prefix": [
+            "die_x_mm",
+            "die_y_mm",
+            "grid_x",
+            "grid_y",
+            "test_site",
+            "hard_bin",
+            "soft_bin",
+            "pass",
+        ],
+    },
+}
+
+
+def test_csv_format_version_matches_the_block_layouts(tmp_path: Path) -> None:
+    path, _ = _single_csv(tmp_path)
+    _, blocks = _read_blocks(path)
+
+    version = dict(blocks["[METADATA]"][1:])["csv_format_version"]
+    layout = _CSV_FORMAT_LAYOUTS[version]
+
+    assert [key for key, _ in blocks["[METADATA]"][1:]] == layout["metadata_keys"]
+    assert blocks["[TEST_ITEMS]"][0] == layout["test_items_header"]
+    assert blocks["[BIN_DEFINITIONS]"][0] == layout["bin_definitions_header"]
+    prefix = layout["test_data_prefix"]
+    assert blocks["[TEST_DATA]"][0][: len(prefix)] == prefix
 
 
 def test_generate_rejects_semantically_invalid_scenario() -> None:
