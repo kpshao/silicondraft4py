@@ -45,6 +45,7 @@ def _write_scenario(
     wafers_per_lot: int = 1,
     test_program: str | None = None,
     cp_vthn_usl: float | None = None,
+    encoding: str | None = None,
 ) -> Path:
     lines = [
         "schema_version: 1",
@@ -68,6 +69,8 @@ def _write_scenario(
                 f"      usl: {cp_vthn_usl}",
             ]
         )
+    if encoding is not None:
+        lines.extend(["export:", f"  encoding: {encoding}"])
     lines.append("seed: 20260105")
     path = tmp_path / "tiny.yaml"
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -99,6 +102,7 @@ def _single_csv(
     wafers_per_lot: int = 1,
     test_program: str | None = None,
     cp_vthn_usl: float | None = None,
+    encoding: str | None = None,
 ) -> tuple[Path, GenerationResult]:
     scenario = load_scenario(
         _write_scenario(
@@ -106,6 +110,7 @@ def _single_csv(
             wafers_per_lot=wafers_per_lot,
             test_program=test_program,
             cp_vthn_usl=cp_vthn_usl,
+            encoding=encoding,
         )
     )
     result = generate(scenario)
@@ -163,6 +168,16 @@ def test_export_writes_one_multiblock_csv_per_wafer(tmp_path: Path) -> None:
         assert metadata["die_count"] == "2700"
         assert metadata["yield"] == f"{int(metadata['pass_count']) / 2700:.6f}"
     assert wafer_ids == {"W01", "W02"}
+
+
+def test_export_encoding_controls_the_bom(tmp_path: Path) -> None:
+    default_path, _ = _single_csv(tmp_path)
+    assert not default_path.read_bytes().startswith(b"\xef\xbb\xbf")
+
+    bom_path, _ = _single_csv(tmp_path, encoding="utf-8-sig")
+    data = bom_path.read_bytes()
+    assert data.startswith(b"\xef\xbb\xbf")
+    assert data.decode("utf-8-sig").startswith("[METADATA]\n")
 
 
 def test_metadata_block_contains_scenario_and_wafer_fields(tmp_path: Path) -> None:

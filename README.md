@@ -38,6 +38,8 @@ wc -l out/*.csv
 
 同一 scenario + seed 重复生成时数据一致，`generated_at` 与文件名时间戳除外。
 
+> **Excel 用户**：默认 `export.encoding: utf-8` 不写 BOM，Excel 双击打开会把 `Ω`、`µA/µm`、`Å` 等单位符号按本地 ANSI 编码解析成乱码。请将 scenario 的 `export.encoding` 设为 `utf-8-sig`（[examples/tiny.yaml](examples/tiny.yaml) 已这样配置），或改用 Excel 的“数据 → 从文本/CSV”并手动选择 UTF-8。
+
 生成 CP 数据并写入 CP CSV：
 
 ```bash
@@ -73,7 +75,7 @@ die_x_mm,die_y_mm,grid_x,grid_y,test_site,hard_bin,pass,CP_CONT,...
 ...
 ```
 
-每个块以独占一行的 `[SECTION]` 标记开头，块间没有空行。同一 scenario + seed 的数据仍一致，但 `generated_at` 与文件名时间戳会不同，比较时忽略这两项。
+每个块以独占一行的 `[SECTION]` 标记开头，块间没有空行。编码遵循 `export.encoding`：默认 `utf-8`（无 BOM）；用 Excel 直接打开时设为 `utf-8-sig`，否则非 ASCII 单位符号会乱码。同一 scenario + seed 的数据仍一致，但 `generated_at` 与文件名时间戳会不同，比较时忽略这两项。
 
 校验一个 scenario 文件。合法配置返回 0，并打印 die 数、item 数等摘要；非法配置返回 1，并给出可定位的字段路径与错误码：
 
@@ -182,6 +184,8 @@ wc -l out/*.csv
 
 Repeated generation with the same scenario + seed produces identical data, except for `generated_at` and the timestamp in the file name.
 
+> **Excel users**: the default `export.encoding: utf-8` writes no BOM, so opening the CSV by double-clicking makes Excel decode unit symbols such as `Ω`, `µA/µm`, and `Å` with the local ANSI codepage, producing mojibake. Set `export.encoding` to `utf-8-sig` in your scenario ([examples/tiny.yaml](examples/tiny.yaml) already does), or use Excel's Data → From Text/CSV and choose UTF-8 manually.
+
 Generate CP data and write CP CSV:
 
 ```bash
@@ -217,7 +221,7 @@ die_x_mm,die_y_mm,grid_x,grid_y,test_site,hard_bin,pass,CP_CONT,...
 ...
 ```
 
-Each block starts with a standalone `[SECTION]` marker, and there are no blank lines between blocks. The same scenario + seed still produces identical data, but `generated_at` and the file-name timestamp differ, so comparisons should ignore both.
+Each block starts with a standalone `[SECTION]` marker, and there are no blank lines between blocks. Encoding follows `export.encoding`: the default `utf-8` writes no BOM; set it to `utf-8-sig` when opening the CSV directly in Excel, otherwise non-ASCII unit symbols appear garbled. The same scenario + seed still produces identical data, but `generated_at` and the file-name timestamp differ, so comparisons should ignore both.
 
 Validate a scenario file. A valid configuration exits 0 and prints a summary (die count, item count, and more); an invalid one exits 1 with locatable field paths and error codes:
 

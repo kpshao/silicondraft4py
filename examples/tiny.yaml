@@ -28,5 +28,6 @@ export:
   wat_csv: false
   ground_truth: false
   include_die_truth: false
+  encoding: utf-8-sig
 
 seed: 20260105
