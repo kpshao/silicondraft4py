@@ -178,7 +178,7 @@ V1 模式目录：`center-high`、`center-low`、`edge-high`、`edge-low`、`rin
 
 - Hard bin 默认：1=pass、2=parametric fail、3=functional/structural fail、4=continuity/contact fail。
 - Soft bin 默认：100=pass、201=continuity、202=leakage、203=Iddq、204=Vth、205=frequency、206=functional/scan、207=other parametric。
-- pass/fail 由 spec limits 与 bin 规则推导；一颗 die 有多个失败项时，先按 hard bin 严重度（continuity → functional → parametric），再按 soft bin 号（leakage → Iddq → Vth → frequency → other parametric）归类；bin 表可在 scenario 覆盖。
+- pass/fail 由 spec limits 与 bin 规则推导；一颗 die 有多个失败项时，先按 hard bin 严重度（continuity → functional → parametric），再按 soft bin 号（leakage → Iddq → Vth → frequency → other parametric）归类；bin 表可在 scenario 覆盖（当前先实现内置默认表，scenario 覆盖留待后续里程碑）。
 - STDF 输出 HBR/SBR；CSV 的 `[BIN_DEFINITIONS]` 块同时输出 HARD 与 SOFT 定义，`[TEST_DATA]` 包含 hard bin 与 soft bin 列。
 
 #### 4.4.6 可复现性
@@ -521,7 +521,7 @@ V1 pattern catalog: `center-high`, `center-low`, `edge-high`, `edge-low`, `ring`
 
 - Default hard bins: 1=pass, 2=parametric fail, 3=functional/structural fail, 4=continuity/contact fail.
 - Default soft bins: 100=pass, 201=continuity, 202=leakage, 203=Iddq, 204=Vth, 205=frequency, 206=functional/scan, 207=other parametric.
-- Pass/fail is derived from spec limits and bin rules; when a die fails multiple items, the bin is chosen by hard-bin severity (continuity → functional → parametric), then by soft-bin number (leakage → Iddq → Vth → frequency → other parametric); the bin table is overridable in the scenario.
+- Pass/fail is derived from spec limits and bin rules; when a die fails multiple items, the bin is chosen by hard-bin severity (continuity → functional → parametric), then by soft-bin number (leakage → Iddq → Vth → frequency → other parametric); the bin table is overridable in the scenario (the built-in defaults come first, with scenario overrides deferred to a later milestone).
 - STDF writes HBR/SBR; the CSV `[BIN_DEFINITIONS]` block carries both HARD and SOFT definitions, and `[TEST_DATA]` includes hard-bin and soft-bin columns.
 
 #### 4.4.6 Reproducibility

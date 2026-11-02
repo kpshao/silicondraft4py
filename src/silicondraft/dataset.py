@@ -10,7 +10,7 @@ from numpy.typing import NDArray
 from .binning import (
     HARD_BIN_DEFINITIONS,
     SOFT_BIN_DEFINITIONS,
-    BinCount,
+    BinParetoEntry,
     bin_pareto,
 )
 from .catalog import CatalogItem
@@ -52,12 +52,12 @@ class CPWafer:
         return self.pass_count / self.die_count
 
     @property
-    def hard_bin_pareto(self) -> tuple[BinCount, ...]:
+    def hard_bin_pareto(self) -> tuple[BinParetoEntry, ...]:
         """Hard-bin counts on this wafer, most frequent first."""
         return bin_pareto(self.hard_bin, HARD_BIN_DEFINITIONS)
 
     @property
-    def soft_bin_pareto(self) -> tuple[BinCount, ...]:
+    def soft_bin_pareto(self) -> tuple[BinParetoEntry, ...]:
         """Soft-bin counts on this wafer, most frequent first."""
         return bin_pareto(self.soft_bin, SOFT_BIN_DEFINITIONS)
 
@@ -82,10 +82,7 @@ class CPLot:
     @property
     def yield_fraction(self) -> float:
         """Fraction of passing dies in this lot, between 0 and 1."""
-        die_count = self.die_count
-        if die_count == 0:  # pragma: no cover - generation always produces dies
-            return 0.0
-        return self.pass_count / die_count
+        return self.pass_count / self.die_count
 
 
 @dataclass(frozen=True, slots=True)

@@ -70,7 +70,7 @@ SOFT_BIN_DEFINITIONS: tuple[BinDefinition, ...] = (
     BinDefinition(SOFT_VTH, "VTH", False, "Threshold voltage failure", PARAMETRIC_FAIL),
     BinDefinition(SOFT_FREQUENCY, "FREQUENCY", False, "Frequency failure", PARAMETRIC_FAIL),
     BinDefinition(
-        SOFT_FUNCTIONAL, "FUNCTIONAL", False, "Functional or scan failure", FUNCTIONAL_FAIL
+        SOFT_FUNCTIONAL, "FUNCTIONAL_SCAN", False, "Functional or scan failure", FUNCTIONAL_FAIL
     ),
     BinDefinition(
         SOFT_OTHER_PARAMETRIC,
@@ -98,16 +98,14 @@ _SOFT_BIN_BY_ITEM_ID: dict[str, int] = {
     "CP_FRO": SOFT_FREQUENCY,
 }
 
-# Highest severity first: continuity, then functional, then the parametric
-# categories. Within parametric failures the lower soft-bin number wins.
-_SOFT_BIN_PRECEDENCE: tuple[int, ...] = (
-    SOFT_CONTINUITY,
-    SOFT_FUNCTIONAL,
-    SOFT_LEAKAGE,
-    SOFT_IDDQ,
-    SOFT_VTH,
-    SOFT_FREQUENCY,
-    SOFT_OTHER_PARAMETRIC,
+# Highest severity first: the hard bin numbers rank continuity over functional
+# over parametric, and within one hard bin the lower soft-bin number wins.
+_SOFT_BIN_PRECEDENCE: tuple[int, ...] = tuple(
+    definition.number
+    for definition in sorted(
+        (definition for definition in SOFT_BIN_DEFINITIONS if not definition.passed),
+        key=lambda definition: (-definition.hard_bin, definition.number),
+    )
 )
 
 _HARD_BIN_BY_SOFT: dict[int, int] = {
@@ -124,22 +122,25 @@ class BinArrays:
 
 
 @dataclass(frozen=True, slots=True)
-class BinCount:
-    """One observed bin in a Pareto summary."""
+class BinParetoEntry:
+    """One observed bin in a Pareto summary over all dies."""
 
     definition: BinDefinition
     count: int
-    fraction: float
+    fraction_of_dies: float
 
 
-def bin_pareto(bins: IntArray, definitions: tuple[BinDefinition, ...]) -> tuple[BinCount, ...]:
+def bin_pareto(
+    bins: IntArray, definitions: tuple[BinDefinition, ...]
+) -> tuple[BinParetoEntry, ...]:
     """Count the observed bins, most frequent first, ties by bin number."""
     total = int(bins.size)
-    if total == 0:
-        return ()
-
     entries = [
-        BinCount(definition=definition, count=count, fraction=count / total)
+        BinParetoEntry(
+            definition=definition,
+            count=count,
+            fraction_of_dies=count / total,
+        )
         for definition in definitions
         if (count := int(np.count_nonzero(bins == definition.number))) > 0
     ]

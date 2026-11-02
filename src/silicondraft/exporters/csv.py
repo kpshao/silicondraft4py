@@ -15,7 +15,7 @@ from ..binning import HARD_BIN_DEFINITIONS, SOFT_BIN_DEFINITIONS
 from ..dataset import CPLot, CPWafer, GenerationResult
 from ..scenario.models import Scenario
 
-CSV_FORMAT_VERSION = "1"
+CSV_FORMAT_VERSION = "2"
 TESTER_TYPE = "SIM"
 EXEC_TYPE = "SiliconDraft"
 PHASE = "CP"

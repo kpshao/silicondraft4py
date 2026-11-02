@@ -144,7 +144,7 @@ def test_bin_definitions_include_hard_and_soft_bins(tmp_path: Path) -> None:
         ("203", "IDDQ", "F", "2"),
         ("204", "VTH", "F", "2"),
         ("205", "FREQUENCY", "F", "2"),
-        ("206", "FUNCTIONAL", "F", "3"),
+        ("206", "FUNCTIONAL_SCAN", "F", "3"),
         ("207", "OTHER_PARAMETRIC", "F", "2"),
     ]
 
@@ -255,7 +255,9 @@ def test_lot_wafer_and_die_yield_summaries_are_computed_and_emitted(tmp_path: Pa
         assert sum(int(row[7]) for row in rows) == int(metadata["pass_count"])
 
 
-def test_bin_pareto_is_complete_sorted_and_consistent_with_yield(tmp_path: Path) -> None:
+def test_hard_and_soft_bin_pareto_are_complete_sorted_and_consistent_with_yield(
+    tmp_path: Path,
+) -> None:
     result, _ = _generate(tmp_path, overrides=[{"id": "CP_FUNC", "typical": 0.9}])
     wafer = result.lots[0].wafers[0]
 
@@ -270,8 +272,8 @@ def test_bin_pareto_is_complete_sorted_and_consistent_with_yield(tmp_path: Path)
     hard_pass = next(entry for entry in hard if entry.definition.number == 1)
     soft_pass = next(entry for entry in soft if entry.definition.number == 100)
     assert hard_pass.count == soft_pass.count == wafer.pass_count
-    assert hard_pass.fraction == pytest.approx(wafer.yield_fraction)
-    assert soft_pass.fraction == pytest.approx(wafer.yield_fraction)
+    assert hard_pass.fraction_of_dies == pytest.approx(wafer.yield_fraction)
+    assert soft_pass.fraction_of_dies == pytest.approx(wafer.yield_fraction)
 
     soft_by_hard: dict[int, int] = {}
     for entry in soft:

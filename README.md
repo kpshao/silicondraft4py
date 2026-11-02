@@ -4,7 +4,7 @@
 
 SiliconDraft 是一个 scenario（场景）驱动的合成 CP/WAT 测试数据生成器，用于验证良率管理系统（YMS）的数据导入、良率/bin 分析、wafer map、SPC 与相关性分析。V1 覆盖 CP 与 WAT；FT 计划于 V2 支持。
 
-当前处于 V1 开发早期：项目骨架、scenario v1 schema、结构/语义校验与 `validate` / `schema` / `version` CLI 已完成；CP 生成与 CP CSV 导出（`generate`）已接入，包含 21 个 CP 测试项、hard/soft bin、由 spec limits 推导的 pass/fail、lot/wafer/die 良率汇总与 bin Pareto，CSV 采用 [ADR-0005](docs/adr/0005-cp-csv-multiblock-layout.md) 的每 wafer 一个文件、四块布局。latent 联动、系统性空间模式与随机缺陷（含 `CP_FUNC`/`CP_SCAN` 默认失败率）、WAT、STDF、ground truth 与 GUI 仍在后续里程碑。
+当前处于 V1 开发早期：项目骨架、scenario v1 schema、结构/语义校验与 `validate` / `schema` / `version` CLI 已完成；CP 生成与 CP CSV 导出（`generate`）已接入，包含 21 个 CP 测试项、hard/soft bin、由 spec limits 推导的 pass/fail、lot/wafer/die 良率汇总与 hard/soft bin Pareto，CSV 采用 [ADR-0005](docs/adr/0005-cp-csv-multiblock-layout.md) 的每 wafer 一个文件、四块布局。latent 联动、系统性空间模式与随机缺陷（含 `CP_FUNC`/`CP_SCAN` 默认失败率）、WAT、STDF、ground truth 与 GUI 仍在后续里程碑。
 
 ## 安装
 
@@ -32,7 +32,7 @@ uv run silicondraft generate -c examples/tiny.yaml -o out/
 ```bash
 ls -lh out/
 head -n 30 out/*.csv                # [METADATA] 与 [TEST_ITEMS]
-grep -A5 '^\[BIN_DEFINITIONS\]' out/*.csv
+grep -A13 '^\[BIN_DEFINITIONS\]' out/*.csv
 wc -l out/*.csv
 ```
 
@@ -57,7 +57,7 @@ uv run silicondraft generate -c scenario.yaml -o out/
 ```text
 [METADATA]
 key,value
-csv_format_version,1
+csv_format_version,2
 scenario_schema_version,1
 phase,CP
 lot_id,GEN55LOGIC-L001
@@ -150,7 +150,7 @@ MIT，见 [LICENSE](LICENSE)。
 
 SiliconDraft is a scenario-driven synthetic CP/WAT test data generator for validating yield management system (YMS) functions such as data import, yield/bin analysis, wafer maps, SPC, and correlation analysis. V1 covers CP and WAT; FT is planned for V2.
 
-The project is in early V1 development: the project skeleton, scenario v1 schema, structural/semantic validation, and the `validate` / `schema` / `version` CLI are in place, along with CP generation and CP CSV export (`generate`). Generation now covers all 21 CP test items, hard/soft bins, pass/fail derived from spec limits, lot/wafer/die yield summaries, and bin Pareto; CP CSV uses the per-wafer, four-block layout set by [ADR-0005](docs/adr/0005-cp-csv-multiblock-layout.md). Latent-factor linkage, systematic spatial patterns and random defects (including the default `CP_FUNC`/`CP_SCAN` failure rate), WAT, STDF, ground truth, and the GUI arrive in later milestones.
+The project is in early V1 development: the project skeleton, scenario v1 schema, structural/semantic validation, and the `validate` / `schema` / `version` CLI are in place, along with CP generation and CP CSV export (`generate`). Generation now covers all 21 CP test items, hard/soft bins, pass/fail derived from spec limits, lot/wafer/die yield summaries, and hard/soft-bin Pareto; CP CSV uses the per-wafer, four-block layout set by [ADR-0005](docs/adr/0005-cp-csv-multiblock-layout.md). Latent-factor linkage, systematic spatial patterns and random defects (including the default `CP_FUNC`/`CP_SCAN` failure rate), WAT, STDF, ground truth, and the GUI arrive in later milestones.
 
 ## Install
 
@@ -178,7 +178,7 @@ Inspect the output (four blocks plus 2,700 die rows, 2,769 lines total):
 ```bash
 ls -lh out/
 head -n 30 out/*.csv                # [METADATA] and [TEST_ITEMS]
-grep -A5 '^\[BIN_DEFINITIONS\]' out/*.csv
+grep -A13 '^\[BIN_DEFINITIONS\]' out/*.csv
 wc -l out/*.csv
 ```
 
@@ -203,7 +203,7 @@ This milestone exports CP CSV only: it honours `export.encoding` but does not ye
 ```text
 [METADATA]
 key,value
-csv_format_version,1
+csv_format_version,2
 scenario_schema_version,1
 phase,CP
 lot_id,GEN55LOGIC-L001

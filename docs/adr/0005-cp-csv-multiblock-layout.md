@@ -18,7 +18,7 @@ CP CSV 目前是单一宽表，缺少文件级元数据、bin 定义与测试项
 - STDF 布局不变；WAT CSV 未来可复用同一套块 grammar。
 - `export.split_by_wafer` 从 scenario schema 移除，属于 schema 变更。
 
-**后续更新（T04）：** soft bin 已实现，`[BIN_DEFINITIONS]` 按同一 schema 同时输出 HARD 与 SOFT 行（SOFT 行通过 `hard_bin` 列映射）；`[TEST_DATA]` 在 `hard_bin` 后增加 `soft_bin` 列；`[METADATA]` 增加 lot 级 `lot_die_count`/`lot_pass_count`/`lot_yield`，与每 wafer 的 `die_count`/`pass_count`/`yield` 并列。四块布局不变。
+**后续更新（T04）：** soft bin 已实现，`[BIN_DEFINITIONS]` 按同一 schema 同时输出 HARD 与 SOFT 行（SOFT 行通过 `hard_bin` 列映射）；`[TEST_DATA]` 在 `hard_bin` 后增加 `soft_bin` 列；`[METADATA]` 增加 lot 级 `lot_die_count`/`lot_pass_count`/`lot_yield`，与每 wafer 的 `die_count`/`pass_count`/`yield` 并列；`csv_format_version` 从 `1` 升到 `2`。四块布局不变。
 
 <details>
 <summary>English</summary>
@@ -43,6 +43,6 @@ The CP CSV is currently a single flat table with no file-level metadata, bin def
 - The STDF layout is unchanged; a future WAT CSV can reuse the same block grammar.
 - Removing `export.split_by_wafer` from the scenario schema is a schema change.
 
-**Update (T04):** soft bins are now implemented; `[BIN_DEFINITIONS]` emits both HARD and SOFT rows under the same schema (SOFT rows map to a hard bin through the `hard_bin` column); `[TEST_DATA]` gains a `soft_bin` column after `hard_bin`; `[METADATA]` gains lot-level `lot_die_count`/`lot_pass_count`/`lot_yield` alongside the per-wafer `die_count`/`pass_count`/`yield`. The four-block layout is unchanged.
+**Update (T04):** soft bins are now implemented; `[BIN_DEFINITIONS]` emits both HARD and SOFT rows under the same schema (SOFT rows map to a hard bin through the `hard_bin` column); `[TEST_DATA]` gains a `soft_bin` column after `hard_bin`; `[METADATA]` gains lot-level `lot_die_count`/`lot_pass_count`/`lot_yield` alongside the per-wafer `die_count`/`pass_count`/`yield`; `csv_format_version` moves from `1` to `2`. The four-block layout is unchanged.
 
 </details>

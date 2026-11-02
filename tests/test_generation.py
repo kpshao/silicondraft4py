@@ -192,7 +192,7 @@ def test_metadata_block_contains_scenario_and_wafer_fields(tmp_path: Path) -> No
     assert [key for key, _ in metadata[1:]] == _METADATA_KEYS
     values = dict(metadata[1:])
 
-    assert values["csv_format_version"] == "1"
+    assert values["csv_format_version"] == "2"
     assert values["scenario_schema_version"] == "1"
     assert values["phase"] == "CP"
     assert values["lot_id"] == "GEN55LOGIC-L001"
@@ -325,7 +325,7 @@ def test_bin_definitions_block_lists_hard_and_soft_bins(tmp_path: Path) -> None:
         ("SOFT", "203", "IDDQ", "F", "2"),
         ("SOFT", "204", "VTH", "F", "2"),
         ("SOFT", "205", "FREQUENCY", "F", "2"),
-        ("SOFT", "206", "FUNCTIONAL", "F", "3"),
+        ("SOFT", "206", "FUNCTIONAL_SCAN", "F", "3"),
         ("SOFT", "207", "OTHER_PARAMETRIC", "F", "2"),
     ]
 
