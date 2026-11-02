@@ -16,7 +16,7 @@ from . import (
     scenario_schema,
     validate_scenario,
 )
-from .errors import ExportError, ScenarioError
+from .errors import ScenarioError
 
 
 class _ArgumentParser(argparse.ArgumentParser):
@@ -110,7 +110,7 @@ def _generate(scenario_path: Path, output_dir: Path) -> int:
 
     try:
         paths = export(result, output_dir)
-    except ExportError as exc:
+    except Exception as exc:
         print(f"export failed: {exc}", file=sys.stderr)
         return 3
 

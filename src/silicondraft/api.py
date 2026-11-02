@@ -8,7 +8,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .binning import classify_hard_bins
+from .binning import PASS, classify_hard_bins
 from .catalog import CatalogItem, resolve_catalog
 from .dataset import CPLot, CPWafer, FloatArray, GenerationResult
 from .errors import ExportError, ScenarioError
@@ -60,7 +60,7 @@ def generate(scenario: Scenario) -> GenerationResult:
                     grid_y=layout.grid_y,
                     test_site=layout.test_site,
                     hard_bin=hard_bin,
-                    passed=hard_bin == 1,
+                    passed=hard_bin == PASS,
                     values=values,
                 )
             )

@@ -4,7 +4,7 @@
 
 SiliconDraft 是一个 scenario（场景）驱动的合成 CP/WAT 测试数据生成器，用于验证良率管理系统（YMS）的数据导入、良率/bin 分析、wafer map、SPC 与相关性分析。V1 覆盖 CP 与 WAT；FT 计划于 V2 支持。
 
-当前处于 V1 开发早期：项目骨架、scenario v1 schema、结构/语义校验与 `validate` / `schema` / `version` CLI 已完成；最小 CP 生成与 CP wide CSV 导出（`generate`）已接入。完整测试项目录、WAT、STDF、ground truth 与 GUI 仍在后续里程碑。
+当前处于 V1 开发早期：项目骨架、scenario v1 schema、结构/语义校验与 `validate` / `schema` / `version` CLI 已完成；最小 CP 生成与 CP wide CSV 导出（`generate`）已接入。latent 联动、系统性空间模式与随机缺陷（含 `CP_FUNC`/`CP_SCAN` 默认失败率）、soft bin 与良率汇总、WAT、STDF、ground truth 与 GUI 仍在后续里程碑。
 
 ## 安装
 
@@ -22,7 +22,9 @@ uv sync
 uv run silicondraft generate -c scenario.yaml -o out/
 ```
 
-生成只接受通过校验的 scenario。CSV 每个 lot 一个文件，每行一颗 die，包含 lot/wafer、mm 与 grid 坐标、test site、hard bin、pass 以及每个启用的 CP 测试项一列。当前里程碑只导出 CP wide CSV；STDF、WAT 与 ground truth 随后续里程碑接入。同一 scenario + seed 生成的数据一致（文件名中的时间戳除外）。
+生成只接受通过校验的 scenario。CSV 每个 lot 一个文件，每行一颗 die，包含 lot/wafer、mm 与 grid 坐标、test site、hard bin、pass 以及每个启用的 CP 测试项一列。同一 scenario + seed 生成的数据一致（文件名中的时间戳除外）。
+
+当前里程碑只导出 CP wide CSV：它使用 `export.encoding`，但暂不读取 `export` 中的 STDF/WAT/ground-truth/split 选项，也不会应用 `patterns` 或 `linkage`。这些配置随后续里程碑接入。
 
 校验一个 scenario 文件。合法配置返回 0，并打印 die 数、item 数等摘要；非法配置返回 1，并给出可定位的字段路径与错误码：
 
@@ -97,7 +99,7 @@ MIT，见 [LICENSE](LICENSE)。
 
 SiliconDraft is a scenario-driven synthetic CP/WAT test data generator for validating yield management system (YMS) functions such as data import, yield/bin analysis, wafer maps, SPC, and correlation analysis. V1 covers CP and WAT; FT is planned for V2.
 
-The project is in early V1 development: the project skeleton, scenario v1 schema, structural/semantic validation, and the `validate` / `schema` / `version` CLI are in place, along with minimal CP generation and CP wide CSV export (`generate`). The full item catalog, WAT, STDF, ground truth, and the GUI arrive in later milestones.
+The project is in early V1 development: the project skeleton, scenario v1 schema, structural/semantic validation, and the `validate` / `schema` / `version` CLI are in place, along with minimal CP generation and CP wide CSV export (`generate`). Latent-factor linkage, systematic spatial patterns and random defects (including the default `CP_FUNC`/`CP_SCAN` failure rate), soft bins and yield summaries, WAT, STDF, ground truth, and the GUI arrive in later milestones.
 
 ## Install
 
@@ -115,7 +117,9 @@ Generate CP data and write CP wide CSV:
 uv run silicondraft generate -c scenario.yaml -o out/
 ```
 
-Generation only accepts a scenario that passes validation. Each lot gets one CSV file with one row per die, containing lot/wafer, mm and grid coordinates, test site, hard bin, pass, and one column per enabled CP test item. This milestone exports CP wide CSV only; STDF, WAT, and ground truth follow in later milestones. The same scenario + seed produces identical data (excluding the timestamp in the file name).
+Generation only accepts a scenario that passes validation. Each lot gets one CSV file with one row per die, containing lot/wafer, mm and grid coordinates, test site, hard bin, pass, and one column per enabled CP test item. The same scenario + seed produces identical data (excluding the timestamp in the file name).
+
+This milestone exports CP wide CSV only: it honours `export.encoding` but does not yet read the STDF/WAT/ground-truth/split export options, and it does not apply `patterns` or `linkage`. Those configuration sections follow in later milestones.
 
 Validate a scenario file. A valid configuration exits 0 and prints a summary (die count, item count, and more); an invalid one exits 1 with locatable field paths and error codes:
 

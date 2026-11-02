@@ -138,6 +138,25 @@ def test_generate_writes_cp_csv_and_exits_zero(
     assert {"lot_id", "wafer_id", "hard_bin", "CP_VTHN"} <= set(rows[0])
 
 
+def test_generate_maps_export_failures_to_exit_three(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scenario_path = _write_tiny_scenario(tmp_path)
+
+    def _fail_export(*args: object, **kwargs: object) -> tuple[Path, ...]:
+        raise RuntimeError("disk is full")
+
+    monkeypatch.setattr("silicondraft.cli.export", _fail_export)
+
+    exit_code = main(["generate", "-c", str(scenario_path), "-o", str(tmp_path / "out")])
+
+    captured = capsys.readouterr()
+    assert exit_code == 3
+    assert "export failed: disk is full" in captured.err
+
+
 def test_generate_rejects_invalid_config_before_writing_output(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
