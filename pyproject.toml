@@ -1,0 +1,57 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "silicondraft"
+version = "0.1.0"
+description = "Scenario-driven synthetic CP/WAT test data generator"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.13"
+authors = [{ name = "KP Shao" }]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.13",
+    "Typing :: Typed",
+]
+dependencies = [
+    "numpy>=2.1,<3",
+    "pydantic>=2.11,<3",
+    "PyYAML>=6.0.2,<7",
+]
+
+[project.scripts]
+silicondraft = "silicondraft.cli:main"
+
+[dependency-groups]
+dev = [
+    "hypothesis>=6.122",
+    "jsonschema>=4.23",
+    "mypy>=1.15",
+    "pytest>=8.3",
+    "ruff>=0.9",
+    "types-PyYAML>=6.0.12",
+    "types-jsonschema>=4.23",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/silicondraft"]
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+files = ["src", "tests"]
