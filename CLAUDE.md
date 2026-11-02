@@ -12,9 +12,11 @@ The five canonical triage roles map to same-named labels: `needs-triage`, `needs
 
 Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
 
+V1 design appendix: `docs/design/v1-spec.md`; test item catalog: `docs/design/v1-test-item-catalog.md`. Issue #1 is canonical when they disagree.
+
 ### Issue and PR descriptions
 
-GitHub issue and pull request descriptions are bilingual: Chinese first, then the English version in a collapsed `<details><summary>English</summary>` block, matching the format used by issues #2 and #3. Keep both versions in sync.
+GitHub issue and pull request descriptions are bilingual: Chinese first, then the English version in a collapsed `<details><summary>English</summary>` block, matching the format used by issues #2 and #3. Keep both versions in sync. Use `.github/pull_request_template.md` for the PR body structure.
 
 ### Issue closure
 
