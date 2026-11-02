@@ -16,6 +16,27 @@ uv sync
 
 ## 使用
 
+### 快速开始
+
+仓库提供 [examples/tiny.yaml](examples/tiny.yaml)：1 lot × 1 wafer，300 mm 晶圆、5×5 mm die，共 2,700 颗 die。
+
+校验并生成 CP wide CSV：
+
+```bash
+uv run silicondraft validate -c examples/tiny.yaml
+uv run silicondraft generate -c examples/tiny.yaml -o out/
+```
+
+查看输出（1 行表头 + 2,700 行 die = 2,701 行）：
+
+```bash
+ls -lh out/
+head -n 2 out/*.csv
+wc -l out/*.csv
+```
+
+同一 scenario + seed 重复生成时 CSV 内容一致，仅文件名中的时间戳变化。
+
 生成 CP 数据并写入 CP wide CSV：
 
 ```bash
@@ -44,7 +65,7 @@ uv run silicondraft schema
 uv run silicondraft version
 ```
 
-最小 scenario：
+最小 scenario（完整示例见 [examples/tiny.yaml](examples/tiny.yaml)）：
 
 ```yaml
 schema_version: 1
@@ -111,6 +132,27 @@ uv sync
 
 ## Usage
 
+### Quick start
+
+The repo ships [examples/tiny.yaml](examples/tiny.yaml): 1 lot × 1 wafer, 300 mm wafer, 5×5 mm dies, 2,700 dies total.
+
+Validate and generate CP wide CSV:
+
+```bash
+uv run silicondraft validate -c examples/tiny.yaml
+uv run silicondraft generate -c examples/tiny.yaml -o out/
+```
+
+Inspect the output (1 header + 2,700 die rows = 2,701 lines):
+
+```bash
+ls -lh out/
+head -n 2 out/*.csv
+wc -l out/*.csv
+```
+
+Repeated generation with the same scenario + seed produces identical CSV content; only the timestamp in the file name changes.
+
 Generate CP data and write CP wide CSV:
 
 ```bash
@@ -139,7 +181,7 @@ Print the version:
 uv run silicondraft version
 ```
 
-Minimal scenario:
+Minimal scenario (see [examples/tiny.yaml](examples/tiny.yaml) for the full example):
 
 ```yaml
 schema_version: 1

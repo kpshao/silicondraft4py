@@ -1,0 +1,32 @@
+schema_version: 1
+
+product:
+  name: GEN55LOGIC
+  device_family: cmos_logic
+  process_node: "55nm"
+  fab: FAB-A
+
+wafer:
+  diameter_mm: 300
+  die_size_mm: [5.0, 5.0]
+  edge_exclusion_mm: 3.0
+  cp_sites: 4
+
+lots:
+  count: 1
+  wafers_per_lot: 1
+  lot_id_template: "{product}-L{lot:03d}"
+  wafer_id_template: "W{wafer:02d}"
+
+items:
+  preset: generic_cmos_logic_55nm
+
+export:
+  cp_stdf: false
+  cp_csv: true
+  wat_csv: false
+  split_by_wafer: false
+  ground_truth: false
+  include_die_truth: false
+
+seed: 20260105
