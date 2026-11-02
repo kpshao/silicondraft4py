@@ -5,6 +5,7 @@ product:
   device_family: cmos_logic
   process_node: "55nm"
   fab: FAB-A
+  test_program: GEN55LOGIC_CP
 
 wafer:
   diameter_mm: 300
@@ -25,7 +26,6 @@ export:
   cp_stdf: false
   cp_csv: true
   wat_csv: false
-  split_by_wafer: false
   ground_truth: false
   include_die_truth: false
 

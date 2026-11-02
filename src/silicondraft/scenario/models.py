@@ -44,6 +44,7 @@ class Product(_StrictModel):
     device_family: str = ""
     process_node: str = ""
     fab: str = ""
+    test_program: str = ""
 
 
 class Wafer(_StrictModel):
@@ -138,7 +139,6 @@ class ExportOptions(_StrictModel):
     cp_stdf: bool = True
     cp_csv: bool = True
     wat_csv: bool = True
-    split_by_wafer: bool = False
     ground_truth: bool = True
     include_die_truth: bool = True
     encoding: ExportEncoding = "utf-8"

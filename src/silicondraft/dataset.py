@@ -34,6 +34,16 @@ class CPWafer:
         """Number of dies measured on this wafer."""
         return int(self.x_mm.size)
 
+    @property
+    def pass_count(self) -> int:
+        """Number of dies that passed on this wafer."""
+        return int(self.passed.sum())
+
+    @property
+    def yield_fraction(self) -> float:
+        """Fraction of passing dies on this wafer, between 0 and 1."""
+        return self.pass_count / self.die_count
+
 
 @dataclass(frozen=True, slots=True)
 class CPLot:

@@ -17,6 +17,7 @@ def test_minimal_scenario_loads_with_defaults(tmp_path: Path) -> None:
 
     assert scenario.schema_version == 1
     assert scenario.product.name == "GEN55LOGIC"
+    assert scenario.product.test_program == ""
     assert scenario.wafer.diameter_mm == 300
     assert scenario.wafer.die_size_mm == (5.0, 5.0)
     assert scenario.wafer.edge_exclusion_mm == 3.0
@@ -32,7 +33,6 @@ def test_minimal_scenario_loads_with_defaults(tmp_path: Path) -> None:
     assert scenario.export.cp_stdf is True
     assert scenario.export.cp_csv is True
     assert scenario.export.wat_csv is True
-    assert scenario.export.split_by_wafer is False
     assert scenario.export.ground_truth is True
     assert scenario.export.include_die_truth is True
     assert scenario.export.encoding == "utf-8"
