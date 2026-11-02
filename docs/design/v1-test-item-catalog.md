@@ -57,6 +57,22 @@
 | 2020 | `CP_RCONT` | 接触电阻 | Ω | 15 | — | 30 | normal |
 | 2021 | `CP_VDDMIN` | 最低工作电压；越低越好 | V | 0.90 | — | 1.00 | normal |
 
+### 3.1 CP soft bin 归类
+
+失败项的 soft bin 归类如下；未列出的项归入 207 other parametric。自定义 CP 项按分布归类：`bernoulli` 归 206 functional/scan，其余归 207。
+
+| soft bin | 名称 | 测试项 |
+|---:|---|---|
+| 201 | continuity | `CP_CONT`、`CP_RCONT` |
+| 202 | leakage | `CP_IOFFN`、`CP_IOFFP`、`CP_IGATE`、`CP_IIL`、`CP_IIH`、`CP_IOZ` |
+| 203 | Iddq | `CP_IDDQ` |
+| 204 | Vth | `CP_VTHN`、`CP_VTHP` |
+| 205 | frequency | `CP_FRO` |
+| 206 | functional/scan | `CP_FUNC`、`CP_SCAN` |
+| 207 | other parametric | `CP_IONN`、`CP_IONP`、`CP_VIL`、`CP_VIH`、`CP_VOL`、`CP_VOH`、`CP_VDDMIN` 及其余自定义项 |
+
+hard bin 映射：100 → 1 pass；201 → 4 continuity/contact；206 → 3 functional/structural；202/203/204/205/207 → 2 parametric。一颗 die 同时有多个失败项时，按 hard bin 严重度（continuity → functional → parametric），再按 soft bin 号（202 → 203 → 204 → 205 → 207）选取。
+
 ## 4. 默认 WAT↔CP 联动表
 
 目标相关系数为默认值，可在 scenario 中逐对覆盖；生成报告会输出实际达成值。

@@ -3,6 +3,7 @@
 from importlib.metadata import PackageNotFoundError, version
 
 from .api import export, generate
+from .binning import BinDefinition, BinParetoEntry
 from .dataset import CPLot, CPWafer, GenerationResult
 from .errors import ExportError, ScenarioError, ValidationIssue
 from .scenario import (
@@ -20,6 +21,8 @@ except PackageNotFoundError:  # pragma: no cover - running from an unpacked tree
     __version__ = "0.0.0"
 
 __all__ = [
+    "BinDefinition",
+    "BinParetoEntry",
     "CPLot",
     "CPWafer",
     "ExportError",

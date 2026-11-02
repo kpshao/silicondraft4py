@@ -11,11 +11,11 @@ from importlib.metadata import version as package_version
 from pathlib import Path
 from typing import Protocol
 
-from ..binning import HARD_BIN_DEFINITIONS
+from ..binning import HARD_BIN_DEFINITIONS, SOFT_BIN_DEFINITIONS
 from ..dataset import CPLot, CPWafer, GenerationResult
 from ..scenario.models import Scenario
 
-CSV_FORMAT_VERSION = "1"
+CSV_FORMAT_VERSION = "2"
 TESTER_TYPE = "SIM"
 EXEC_TYPE = "SiliconDraft"
 PHASE = "CP"
@@ -30,7 +30,16 @@ _BIN_DEFINITION_HEADER = (
     "hard_bin",
     "description",
 )
-_TEST_DATA_PREFIX = ("die_x_mm", "die_y_mm", "grid_x", "grid_y", "test_site", "hard_bin", "pass")
+_TEST_DATA_PREFIX = (
+    "die_x_mm",
+    "die_y_mm",
+    "grid_x",
+    "grid_y",
+    "test_site",
+    "hard_bin",
+    "soft_bin",
+    "pass",
+)
 
 _UNSAFE_FILENAME_CHARS = re.compile(r"[^A-Za-z0-9_.-]+")
 
@@ -118,6 +127,9 @@ def _write_metadata(
         ("seed", str(scenario.seed)),
         ("scenario_sha256", scenario_hash),
         ("wafer_id", wafer.wafer_id),
+        ("lot_die_count", str(lot.die_count)),
+        ("lot_pass_count", str(lot.pass_count)),
+        ("lot_yield", f"{lot.yield_fraction:.6f}"),
         ("diameter_mm", str(scenario.wafer.diameter_mm)),
         ("die_size_x_mm", _format_float(scenario.wafer.die_size_mm[0])),
         ("die_size_y_mm", _format_float(scenario.wafer.die_size_mm[1])),
@@ -148,17 +160,21 @@ def _write_test_items(writer: _CsvWriter, result: GenerationResult) -> None:
 
 
 def _write_bin_definitions(writer: _CsvWriter) -> None:
-    rows = (
+    rows = [
         (
-            "HARD",
+            bin_type,
             definition.number,
             definition.name,
             "P" if definition.passed else "F",
-            definition.number,
+            definition.hard_bin,
             definition.description,
         )
-        for definition in HARD_BIN_DEFINITIONS
-    )
+        for bin_type, definitions in (
+            ("HARD", HARD_BIN_DEFINITIONS),
+            ("SOFT", SOFT_BIN_DEFINITIONS),
+        )
+        for definition in definitions
+    ]
     _write_block(writer, "[BIN_DEFINITIONS]", _BIN_DEFINITION_HEADER, rows)
 
 
@@ -173,6 +189,7 @@ def _write_test_data(writer: _CsvWriter, wafer: CPWafer, result: GenerationResul
             int(wafer.grid_y[index]),
             int(wafer.test_site[index]),
             int(wafer.hard_bin[index]),
+            int(wafer.soft_bin[index]),
             int(wafer.passed[index]),
             *(_format_float(float(column[index])) for column in item_columns),
         )

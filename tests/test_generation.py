@@ -26,6 +26,9 @@ _METADATA_KEYS = [
     "seed",
     "scenario_sha256",
     "wafer_id",
+    "lot_die_count",
+    "lot_pass_count",
+    "lot_yield",
     "diameter_mm",
     "die_size_x_mm",
     "die_size_y_mm",
@@ -189,7 +192,7 @@ def test_metadata_block_contains_scenario_and_wafer_fields(tmp_path: Path) -> No
     assert [key for key, _ in metadata[1:]] == _METADATA_KEYS
     values = dict(metadata[1:])
 
-    assert values["csv_format_version"] == "1"
+    assert values["csv_format_version"] == "2"
     assert values["scenario_schema_version"] == "1"
     assert values["phase"] == "CP"
     assert values["lot_id"] == "GEN55LOGIC-L001"
@@ -215,7 +218,12 @@ def test_metadata_block_contains_scenario_and_wafer_fields(tmp_path: Path) -> No
     assert values["cp_sites"] == "4"
     assert values["die_count"] == "2700"
 
-    wafer = result.lots[0].wafers[0]
+    lot = result.lots[0]
+    assert values["lot_die_count"] == str(lot.die_count)
+    assert values["lot_pass_count"] == str(lot.pass_count)
+    assert values["lot_yield"] == f"{lot.yield_fraction:.6f}"
+
+    wafer = lot.wafers[0]
     assert values["pass_count"] == str(wafer.pass_count)
     assert values["yield"] == f"{wafer.yield_fraction:.6f}"
 
@@ -293,7 +301,7 @@ def test_test_items_block_leaves_unbounded_limits_empty(tmp_path: Path) -> None:
     assert rows["CP_FUNC"][5] == ""
 
 
-def test_bin_definitions_block_lists_hard_bins(tmp_path: Path) -> None:
+def test_bin_definitions_block_lists_hard_and_soft_bins(tmp_path: Path) -> None:
     path, _ = _single_csv(tmp_path)
     _, blocks = _read_blocks(path)
 
@@ -311,6 +319,14 @@ def test_bin_definitions_block_lists_hard_bins(tmp_path: Path) -> None:
         ("HARD", "2", "PARAMETRIC_FAIL", "F", "2"),
         ("HARD", "3", "FUNCTIONAL_FAIL", "F", "3"),
         ("HARD", "4", "CONTINUITY_FAIL", "F", "4"),
+        ("SOFT", "100", "PASS", "P", "1"),
+        ("SOFT", "201", "CONTINUITY", "F", "4"),
+        ("SOFT", "202", "LEAKAGE", "F", "2"),
+        ("SOFT", "203", "IDDQ", "F", "2"),
+        ("SOFT", "204", "VTH", "F", "2"),
+        ("SOFT", "205", "FREQUENCY", "F", "2"),
+        ("SOFT", "206", "FUNCTIONAL_SCAN", "F", "3"),
+        ("SOFT", "207", "OTHER_PARAMETRIC", "F", "2"),
     ]
 
 
@@ -327,6 +343,7 @@ def test_test_data_block_has_one_row_per_die_with_spec_columns(tmp_path: Path) -
         "grid_y",
         "test_site",
         "hard_bin",
+        "soft_bin",
         "pass",
         *(item.id for item in result.items),
     ]
@@ -341,10 +358,11 @@ def test_test_data_block_has_one_row_per_die_with_spec_columns(tmp_path: Path) -
         assert int(row[3]) == int(wafer.grid_y[index])
         assert int(row[4]) == int(wafer.test_site[index])
         assert int(row[5]) == int(wafer.hard_bin[index])
-        assert row[6] == ("1" if row[5] == "1" else "0")
+        assert int(row[6]) == int(wafer.soft_bin[index])
+        assert row[7] == ("1" if row[5] == "1" else "0")
         assert math.isfinite(float(row[0]))
         assert math.isfinite(float(row[1]))
-        for column, item in enumerate(result.items, start=7):
+        for column, item in enumerate(result.items, start=8):
             assert float(row[column]) == pytest.approx(
                 float(wafer.values[item.id][index]), rel=1e-9
             )

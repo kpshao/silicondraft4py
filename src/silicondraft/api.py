@@ -8,7 +8,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .binning import PASS, classify_hard_bins
+from .binning import PASS, classify_bins
 from .catalog import CatalogItem, resolve_catalog
 from .dataset import CPLot, CPWafer, FloatArray, GenerationResult
 from .errors import ExportError, ScenarioError
@@ -48,7 +48,7 @@ def generate(scenario: Scenario) -> GenerationResult:
                 )
                 for item in items
             }
-            hard_bin = classify_hard_bins(items, values, layout.count)
+            bins = classify_bins(items, values, layout.count)
             wafers.append(
                 CPWafer(
                     wafer_id=scenario.lots.wafer_id_template.format(
@@ -59,8 +59,9 @@ def generate(scenario: Scenario) -> GenerationResult:
                     grid_x=layout.grid_x,
                     grid_y=layout.grid_y,
                     test_site=layout.test_site,
-                    hard_bin=hard_bin,
-                    passed=hard_bin == PASS,
+                    hard_bin=bins.hard,
+                    soft_bin=bins.soft,
+                    passed=bins.hard == PASS,
                     values=values,
                 )
             )
@@ -106,11 +107,16 @@ def _generate_column(
     if item.distribution == "normal":
         return rng.normal(loc=item.typical, scale=_normal_scale(item), size=die_count)
     if item.distribution == "lognormal":
-        return rng.lognormal(
-            mean=math.log(max(item.typical, np.finfo(np.float64).tiny)),
-            sigma=_lognormal_sigma(item),
-            size=die_count,
-        )
+        tiny = np.finfo(np.float64).tiny
+        with np.errstate(over="ignore", under="ignore"):
+            values = rng.lognormal(
+                mean=math.log(max(item.typical, tiny)),
+                sigma=_lognormal_sigma(item),
+                size=die_count,
+            )
+        # Lognormal values are positive by definition; clamp numerical
+        # underflow/overflow so extreme overrides cannot yield 0 or inf.
+        return np.clip(values, tiny, np.finfo(np.float64).max)
 
     probability = min(max(item.typical, 0.0), 1.0)
     return rng.binomial(1, probability, size=die_count).astype(np.float64)

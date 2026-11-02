@@ -178,8 +178,8 @@ V1 模式目录：`center-high`、`center-low`、`edge-high`、`edge-low`、`rin
 
 - Hard bin 默认：1=pass、2=parametric fail、3=functional/structural fail、4=continuity/contact fail。
 - Soft bin 默认：100=pass、201=continuity、202=leakage、203=Iddq、204=Vth、205=frequency、206=functional/scan、207=other parametric。
-- pass/fail 由 spec limits 与 bin 规则推导；bin 表可在 scenario 覆盖。
-- STDF 输出 HBR/SBR；CSV 的 `[BIN_DEFINITIONS]` 块输出 bin 定义，`[TEST_DATA]` 包含 hard bin 列，soft bin 实现后追加 soft bin 列。
+- pass/fail 由 spec limits 与 bin 规则推导；一颗 die 有多个失败项时，先按 hard bin 严重度（continuity → functional → parametric），再按 soft bin 号（leakage → Iddq → Vth → frequency → other parametric）归类；bin 表可在 scenario 覆盖（当前先实现内置默认表，scenario 覆盖留待后续里程碑）。
+- STDF 输出 HBR/SBR；CSV 的 `[BIN_DEFINITIONS]` 块同时输出 HARD 与 SOFT 定义，`[TEST_DATA]` 包含 hard bin 与 soft bin 列。
 
 #### 4.4.6 可复现性
 
@@ -196,10 +196,10 @@ V1 模式目录：`center-high`、`center-low`、`edge-high`、`edge-low`、`rin
 
 - **CP STDF V4**：MIR、MRR、PCR、HBR、SBR、WIR、WRR、WCR、PIR、PRR、PTR、TSR 全套。
 - **CP CSV**：每片 wafer 一个多块 CSV，采用四块布局（见 [ADR-0005](../adr/0005-cp-csv-multiblock-layout.md)）：
-  - `[METADATA]`：`key,value` 两列，记录 `csv_format_version`、`scenario_schema_version`、`phase`、`lot_id`、`product`、`device_family`、`process_node`、`fab`、`test_program`、`tester_type`、`exec_type`、`exec_version`、`generated_at`、`seed`、`scenario_sha256`、`wafer_id`、`diameter_mm`、`die_size_x_mm`、`die_size_y_mm`、`edge_exclusion_mm`、`notch`、`cp_sites`、`die_count`、`pass_count`、`yield`；键名与 STDF 字段的语义映射见 ADR-0005。
+  - `[METADATA]`：`key,value` 两列，记录 `csv_format_version`、`scenario_schema_version`、`phase`、`lot_id`、`product`、`device_family`、`process_node`、`fab`、`test_program`、`tester_type`、`exec_type`、`exec_version`、`generated_at`、`seed`、`scenario_sha256`、`wafer_id`、`lot_die_count`、`lot_pass_count`、`lot_yield`、`diameter_mm`、`die_size_x_mm`、`die_size_y_mm`、`edge_exclusion_mm`、`notch`、`cp_sites`、`die_count`、`pass_count`、`yield`；键名与 STDF 字段的语义映射见 ADR-0005。
   - `[TEST_ITEMS]`：`test_num,item_id,unit,typical,lsl,usl,description`，一行一个启用的 CP item，按 catalog 顺序。
-  - `[BIN_DEFINITIONS]`：`bin_type,bin_number,bin_name,pass_fail,hard_bin,description`；当前只输出 hard bin，soft bin 实现后按同一 schema 追加及其映射；`pass_fail` 用 `P`/`F`。
-  - `[TEST_DATA]`：一行一颗 die，列为 `die_x_mm,die_y_mm,grid_x,grid_y,test_site,hard_bin,pass` 加每个启用 item 一列。
+  - `[BIN_DEFINITIONS]`：`bin_type,bin_number,bin_name,pass_fail,hard_bin,description`；先输出 HARD 行，再按同一 schema 输出 SOFT 行及其到 hard bin 的映射；`pass_fail` 用 `P`/`F`。
+  - `[TEST_DATA]`：一行一颗 die，列为 `die_x_mm,die_y_mm,grid_x,grid_y,test_site,hard_bin,soft_bin,pass` 加每个启用 item 一列。
   - 每个块以独占一行的 `[SECTION]` 标记开头，随后是表头行与数据行；块间不放空行。
 - **WAT CSV**：每个 lot 一个 long CSV，一行 = wafer × site × item；列包含 site 的 mm 坐标、test_num、item_id、value、unit、LSL/USL、pass、timestamp。
 - 文件命名：STDF 与 WAT CSV 为 `{product}_{lot}_{phase}_{timestamp}.{ext}`；CP CSV 为 `{product}_{lot}_{wafer}_CP_{timestamp}.csv`。
@@ -521,8 +521,8 @@ V1 pattern catalog: `center-high`, `center-low`, `edge-high`, `edge-low`, `ring`
 
 - Default hard bins: 1=pass, 2=parametric fail, 3=functional/structural fail, 4=continuity/contact fail.
 - Default soft bins: 100=pass, 201=continuity, 202=leakage, 203=Iddq, 204=Vth, 205=frequency, 206=functional/scan, 207=other parametric.
-- Pass/fail is derived from spec limits and bin rules; the bin table is overridable in the scenario.
-- STDF writes HBR/SBR; the CSV `[BIN_DEFINITIONS]` block carries bin definitions, and `[TEST_DATA]` includes a hard-bin column, with a soft-bin column added once soft bins are implemented.
+- Pass/fail is derived from spec limits and bin rules; when a die fails multiple items, the bin is chosen by hard-bin severity (continuity → functional → parametric), then by soft-bin number (leakage → Iddq → Vth → frequency → other parametric); the bin table is overridable in the scenario (the built-in defaults come first, with scenario overrides deferred to a later milestone).
+- STDF writes HBR/SBR; the CSV `[BIN_DEFINITIONS]` block carries both HARD and SOFT definitions, and `[TEST_DATA]` includes hard-bin and soft-bin columns.
 
 #### 4.4.6 Reproducibility
 
@@ -539,10 +539,10 @@ V1 pattern catalog: `center-high`, `center-low`, `edge-high`, `edge-low`, `ring`
 
 - **CP STDF V4**: MIR, MRR, PCR, HBR, SBR, WIR, WRR, WCR, PIR, PRR, PTR, TSR.
 - **CP CSV**: one multi-block CSV per wafer with a four-block layout (see [ADR-0005](../adr/0005-cp-csv-multiblock-layout.md)):
-  - `[METADATA]`: `key,value` rows carrying `csv_format_version`, `scenario_schema_version`, `phase`, `lot_id`, `product`, `device_family`, `process_node`, `fab`, `test_program`, `tester_type`, `exec_type`, `exec_version`, `generated_at`, `seed`, `scenario_sha256`, `wafer_id`, `diameter_mm`, `die_size_x_mm`, `die_size_y_mm`, `edge_exclusion_mm`, `notch`, `cp_sites`, `die_count`, `pass_count`, and `yield`; the semantic mapping to STDF fields is documented in ADR-0005.
+  - `[METADATA]`: `key,value` rows carrying `csv_format_version`, `scenario_schema_version`, `phase`, `lot_id`, `product`, `device_family`, `process_node`, `fab`, `test_program`, `tester_type`, `exec_type`, `exec_version`, `generated_at`, `seed`, `scenario_sha256`, `wafer_id`, `lot_die_count`, `lot_pass_count`, `lot_yield`, `diameter_mm`, `die_size_x_mm`, `die_size_y_mm`, `edge_exclusion_mm`, `notch`, `cp_sites`, `die_count`, `pass_count`, and `yield`; the semantic mapping to STDF fields is documented in ADR-0005.
   - `[TEST_ITEMS]`: `test_num,item_id,unit,typical,lsl,usl,description`, one row per enabled CP item in catalog order.
-  - `[BIN_DEFINITIONS]`: `bin_type,bin_number,bin_name,pass_fail,hard_bin,description`; it currently emits hard bins only, with soft bins and their mapping added later under the same schema; `pass_fail` uses `P`/`F`.
-  - `[TEST_DATA]`: one row per die with `die_x_mm,die_y_mm,grid_x,grid_y,test_site,hard_bin,pass` plus one column per enabled item.
+  - `[BIN_DEFINITIONS]`: `bin_type,bin_number,bin_name,pass_fail,hard_bin,description`; emits HARD rows first, then SOFT rows under the same schema with their hard-bin mapping; `pass_fail` uses `P`/`F`.
+  - `[TEST_DATA]`: one row per die with `die_x_mm,die_y_mm,grid_x,grid_y,test_site,hard_bin,soft_bin,pass` plus one column per enabled item.
   - Each block starts with a standalone `[SECTION]` marker row, followed by a header row and data rows; no blank lines between blocks.
 - **WAT CSV**: one long CSV per lot, one row per wafer × site × item; site mm coordinates, test_num, item_id, value, unit, LSL/USL, pass, timestamp.
 - File naming: `{product}_{lot}_{phase}_{timestamp}.{ext}` for STDF and WAT CSV; `{product}_{lot}_{wafer}_CP_{timestamp}.csv` for CP CSV.
