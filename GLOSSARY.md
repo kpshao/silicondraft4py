@@ -46,7 +46,11 @@ _Avoid_：test parameter、测试参数（在指代定义本身时）
 
 **Test item catalog（测试项目录）**：
 可用的 CP/WAT 测试项集合，每项带单位、规格限与业务含义；场景从中选择并可按需覆盖。
-_Avoid_：test program（测试程序是完整的测试流程，不只是项目录）
+_Avoid_：test program（见 Test program；测试程序是完整的测试流程，不只是项目录）
+
+**Test program（测试程序）**：
+一次生成运行所使用的完整、具名的测试流程/程序，对应 STDF MIR 的 `JOB_NAM`；它规定测试项的选择与顺序，区别于只描述可选测试项集合的 Test item catalog。
+_Avoid_：用 test program 指代 Test item catalog
 
 **Scenario（场景）**：
 一次生成运行的完整、可复现配置：产品、wafer 几何、lot、测试项、空间模式、联动关系、导出选项与随机种子。
@@ -153,7 +157,11 @@ _Avoid_: test parameter (when referring to the definition itself)
 
 **Test item catalog**:
 The set of available CP/WAT test items, each with a unit, spec limits, and business meaning; a scenario selects from it and may override entries.
-_Avoid_: test program (a test program is a complete test flow, not just a catalog)
+_Avoid_: test program (see Test program; a test program is a complete test flow, not just a catalog)
+
+**Test program**:
+The complete, named test flow/program used for one generation run, corresponding to `JOB_NAM` in STDF MIR; it defines the selection and order of test items and is distinct from the Test item catalog, which only describes the available items.
+_Avoid_: using "test program" for the Test item catalog
 
 **Scenario**:
 A complete, reproducible configuration for one generation run: product, wafer geometry, lots, test items, spatial patterns, linkage, export options, and random seed.

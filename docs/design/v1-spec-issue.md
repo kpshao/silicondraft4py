@@ -76,11 +76,11 @@ SiliconDraft 是一个 scenario 驱动的合成 CP/WAT 测试数据生成器，�
 ### 导出
 
 48. 作为良率工程师，我希望 CP 导出 STDF V4，以便标准 YMS 直接导入。
-49. 作为良率工程师，我希望 CP 导出 wide CSV，以便表格工具和自研脚本直接使用。
+49. 作为良率工程师，我希望 CP 每片 wafer 导出一个 wide CSV，以便表格工具、自研脚本和按片导入流程直接使用。
 50. 作为良率工程师，我希望 WAT 导出 long CSV，以便稀疏站点数据自然表达。
 51. 作为良率工程师，我希望 STDF 包含 MIR/MRR/PCR/HBR/SBR/WIR/WRR/WCR/PIR/PRR/PTR/TSR，以便文件完整。
 52. 作为良率工程师，我希望文件名包含 product/lot/phase/timestamp，以便快速识别。
-53. 作为良率工程师，我希望 CSV 可选择 split-by-wafer，以便测试按片导入。
+53. 作为良率工程师，我希望 CP CSV 固定按 wafer 输出，并包含元数据、测试项、bin 定义与测试数据块，以便按片导入并保留完整上下文。
 54. 作为良率工程师，我希望时间戳用 ISO 8601、数值用点号小数，以便跨 locale 解析一致。
 55. 作为良率工程师，我希望 CSV 默认 UTF-8 无 BOM，并可选择 BOM，以便兼顾 Excel 与 YMS。
 56. 作为良率工程师，我希望 STDF 使用标准 missing code，以便缺失值被正确识别。
@@ -102,7 +102,7 @@ SiliconDraft 是一个 scenario 驱动的合成 CP/WAT 测试数据生成器，�
 66. 作为良率工程师，我希望查看 WAT↔CP 散点图，以便肉眼确认相关性。
 67. 作为良率工程师，我希望查看 lot/wafer 趋势和数据表，以便检查批量数据。
 68. 作为良率工程师，我希望生成过程可取消并显示进度，以便控制长任务。
-69. 作为良率工程师，我希望导出对话框可选择格式、split-by-wafer 和 ground truth，以便一次生成多种产物。
+69. 作为良率工程师，我希望导出对话框可选择格式和 ground truth，以便一次生成多种产物。
 70. 作为良率工程师，我希望在 wafer map 上叠加 ground truth 模式，以便对比注入与观测。
 71. 作为良率工程师，我希望 GUI 保存/加载 scenario YAML，以便共享和复现配置。
 72. 作为用户，我希望界面英文默认、中文可切换且无需重启，以便适配我的语言。
@@ -132,9 +132,9 @@ SiliconDraft 是一个 scenario 驱动的合成 CP/WAT 测试数据生成器，�
 9. **随机缺陷**：默认负二项/簇聚模型，Poisson 可配；参数为缺陷密度与簇聚强度；默认 `CP_FUNC`/`CP_SCAN` 总失败率 1%；缺陷结果进入 ground truth。
 10. **Binning**：hard bin 默认 1=pass、2=parametric fail、3=functional/structural fail、4=continuity/contact fail；soft bin 默认 100=pass、201=continuity、202=leakage、203=Iddq、204=Vth、205=frequency、206=functional/scan、207=other parametric；bin 表可配置；pass/fail 由 spec limits 推导；STDF 输出 HBR/SBR，CSV 双列。
 11. **Ground truth**：JSON 摘要（引擎版本、完整 scenario + SHA-256、seed、生成时间、product、lot/wafer 摘要、每 wafer 良率、latent 均值、模式清单、目标/实际 r、outlier wafer、die truth 文件名）+ 每 die CSV.GZ（坐标、site、true pass/bin、latent factors、pattern IDs）；`--no-die-truth` 可关闭每 die 真值。
-12. **导出**：CP 每 lot 一个 STDF V4（MIR/MRR/PCR/HBR/SBR/WIR/WRR/WCR/PIR/PRR/PTR/TSR）+ 一个 wide CSV；WAT 每 lot 一个 long CSV；命名 `{product}_{lot}_{phase}_{timestamp}.{ext}`；默认 UTF-8 无 BOM；时间戳 ISO 8601；点号小数；STDF 标准 missing code；`--split-by-wafer` 可拆分 CSV。
-13. **CLI**：`generate` / `validate` / `schema` / `version`；参数 `--seed`、`--output`、`--formats`、`--split-by-wafer`、`--lang`、`--log-level`、`--dry-run`、`--overwrite`、`--no-die-truth`；退出码 0 成功、1 配置错误、2 生成错误、3 导出错误；YAML 是唯一入口，不提供纯 flag 拼装完整场景。
-14. **GUI**：单主窗口；左侧 scenario 树，右侧 Wafer Map / Distribution / Correlation / Trend / Table tabs；Generate 在 worker 线程运行，支持进度与取消；Export 对话框可覆盖格式与 split 选项；wafer map 支持 ground truth 叠加；支持 scenario 保存/加载与 YAML 编辑器；记住语言、窗口布局与最近目录。
+12. **导出**：CP 每 lot 一个 STDF V4（MIR/MRR/PCR/HBR/SBR/WIR/WRR/WCR/PIR/PRR/PTR/TSR）+ 每 wafer 一个 wide CSV；WAT 每 lot 一个 long CSV；STDF/WAT 文件名为 `{product}_{lot}_{phase}_{timestamp}.{ext}`，CP CSV 为 `{product}_{lot}_{wafer}_CP_{timestamp}.csv`；CP CSV 采用元数据/测试项/bin 定义/测试数据四块布局（见 #23 与 ADR-0005），固定按 wafer 输出，不提供 split 配置；默认 UTF-8 无 BOM；时间戳 ISO 8601；点号小数；STDF 标准 missing code。
+13. **CLI**：`generate` / `validate` / `schema` / `version`；参数 `--seed`、`--output`、`--formats`、`--lang`、`--log-level`、`--dry-run`、`--overwrite`、`--no-die-truth`；退出码 0 成功、1 配置错误、2 生成错误、3 导出错误；YAML 是唯一入口，不提供纯 flag 拼装完整场景。
+14. **GUI**：单主窗口；左侧 scenario 树，右侧 Wafer Map / Distribution / Correlation / Trend / Table tabs；Generate 在 worker 线程运行，支持进度与取消；Export 对话框可覆盖格式与 ground truth 选项；wafer map 支持 ground truth 叠加；支持 scenario 保存/加载与 YAML 编辑器；记住语言、窗口布局与最近目录。
 15. **国际化**：`en` 默认、`zh_CN` 可切换；GUI 用 Qt `.ts/.qm`，CLI/engine 用 gettext；共享稳定错误码；日志保持英文；导出文件中的 item ID、bin 名、列名保持英文；日期 ISO 8601、点号小数；仓库文档中文优先 + 英文折叠。
 16. **依赖与平台**：Python 3.13；核心依赖 `numpy`、`PyYAML`；GUI 依赖 `PySide6-Essentials`、`pyqtgraph`；测试依赖 `pytest`、`hypothesis`、`pytest-qt`、`pystdf`（GPL-2.0，仅测试）、可选 `stdfast`；Windows 11 与 macOS 14+ 官方支持，Linux best-effort。
 17. **许可证与打包**：项目 MIT；避免 QtCharts/QtGraphs/QtDataVisualization 等 GPLv3-only 模块；PySide6 动态链接并附 LGPL 文本与 notices；首版以 PyInstaller `onedir` 为工作假设，最终打包方案延后。
@@ -168,7 +168,7 @@ SiliconDraft 是一个 scenario 驱动的合成 CP/WAT 测试数据生成器，�
 
 ## 补充说明
 
-- 领域术语以仓库根目录的 `GLOSSARY.md` 为准；测试项目录见 `docs/design/v1-test-item-catalog.md`；关键决策见 `docs/adr/0001-latent-factor-generation-model.md`、`0002-own-stdf-v4-writer.md`、`0003-engine-gui-separation-and-i18n.md`。
+- 领域术语以仓库根目录的 `GLOSSARY.md` 为准；测试项目录见 `docs/design/v1-test-item-catalog.md`；关键决策见 `docs/adr/0001-latent-factor-generation-model.md`、`0002-own-stdf-v4-writer.md`、`0003-engine-gui-separation-and-i18n.md`、`0004-pydantic-for-scenario-schema.md`、`0005-cp-csv-multiblock-layout.md`；CP CSV 的细化见 #23。
 - 本 issue 是规范的唯一来源；本地 `docs/design/v1-spec.md` 作为设计附录保留。
 - 默认 55nm 目录的典型值与限值是示意值，均可覆盖；若后续拿到真实测试程序，优先对齐。
 - 打包方式按用户要求延后；PyInstaller `onedir` 只是首版工作假设，不阻塞前六个里程碑。
@@ -255,11 +255,11 @@ SiliconDraft is a scenario-driven synthetic CP/WAT test data generator with both
 ### Export
 
 48. As a yield engineer, I want CP exported as STDF V4, so that a standard YMS can ingest it directly.
-49. As a yield engineer, I want CP exported as wide CSV, so that spreadsheet tools and custom scripts can use it directly.
+49. As a yield engineer, I want CP exported as one wide CSV per wafer, so that spreadsheet tools, custom scripts, and per-wafer ingestion can use it directly.
 50. As a yield engineer, I want WAT exported as long CSV, so that sparse site data is represented naturally.
 51. As a yield engineer, I want STDF to include MIR/MRR/PCR/HBR/SBR/WIR/WRR/WCR/PIR/PRR/PTR/TSR, so that the files are complete.
 52. As a yield engineer, I want file names to include product/lot/phase/timestamp, so that files are easy to identify.
-53. As a yield engineer, I want optional split-by-wafer CSV, so that per-wafer ingestion can be tested.
+53. As a yield engineer, I want CP CSV emitted per wafer with metadata, test-item, bin-definition, and test-data blocks, so that per-wafer ingestion carries full context without extra configuration.
 54. As a yield engineer, I want ISO 8601 timestamps and dot decimals, so that parsing is consistent across locales.
 55. As a yield engineer, I want UTF-8 without BOM by default with an optional BOM, so that Excel and YMS ingestion both work.
 56. As a yield engineer, I want STDF standard missing codes, so that missing values are recognized correctly.
@@ -281,7 +281,7 @@ SiliconDraft is a scenario-driven synthetic CP/WAT test data generator with both
 66. As a yield engineer, I want a WAT↔CP scatter plot, so that I can see correlation strength directly.
 67. As a yield engineer, I want lot/wafer trends and a data table, so that I can inspect bulk data.
 68. As a yield engineer, I want generation to be cancellable with progress, so that long runs are controllable.
-69. As a yield engineer, I want an export dialog with format, split-by-wafer, and ground-truth options, so that one run can produce several outputs.
+69. As a yield engineer, I want an export dialog with format and ground-truth options, so that one run can produce several outputs.
 70. As a yield engineer, I want a ground-truth overlay on the wafer map, so that I can compare injected patterns with observations.
 71. As a yield engineer, I want the GUI to save/load scenario YAML, so that configs can be shared and reproduced.
 72. As a user, I want an English-first UI with a Chinese switch that needs no restart, so that it fits my language.
@@ -311,9 +311,9 @@ SiliconDraft is a scenario-driven synthetic CP/WAT test data generator with both
 9. **Random defects**: negative-binomial/clustered model by default, Poisson configurable; parameters are defect density and clustering strength; default `CP_FUNC`/`CP_SCAN` total failure rate 1%; defect results enter ground truth.
 10. **Binning**: default hard bins 1=pass, 2=parametric fail, 3=functional/structural fail, 4=continuity/contact fail; default soft bins 100=pass, 201=continuity, 202=leakage, 203=Iddq, 204=Vth, 205=frequency, 206=functional/scan, 207=other parametric; bin table configurable; pass/fail derived from spec limits; STDF HBR/SBR, CSV has both columns.
 11. **Ground truth**: JSON summary (engine version, full scenario + SHA-256, seed, generation time, product, lot/wafer summary, per-wafer yield, latent means, pattern manifest, target/achieved r, outlier wafers, die-truth file names) plus per-die CSV.GZ (coordinates, site, true pass/bin, latent factors, pattern IDs); `--no-die-truth` disables per-die truth.
-12. **Export**: one STDF V4 per CP lot (MIR/MRR/PCR/HBR/SBR/WIR/WRR/WCR/PIR/PRR/PTR/TSR) plus one wide CSV; one long CSV per WAT lot; naming `{product}_{lot}_{phase}_{timestamp}.{ext}`; UTF-8 without BOM by default; ISO 8601 timestamps; dot decimals; standard STDF missing codes; `--split-by-wafer` splits CSV.
-13. **CLI**: `generate` / `validate` / `schema` / `version`; flags `--seed`, `--output`, `--formats`, `--split-by-wafer`, `--lang`, `--log-level`, `--dry-run`, `--overwrite`, `--no-die-truth`; exit codes 0 success, 1 configuration error, 2 generation error, 3 export error; YAML is the only entry point; no fully flag-driven scenario assembly.
-14. **GUI**: single main window; scenario tree on the left; Wafer Map / Distribution / Correlation / Trend / Table tabs on the right; Generate runs in a worker thread with progress and cancel; Export dialog can override formats and split options; wafer map supports ground-truth overlay; scenario save/load and YAML editor; remembers language, layout, and recent directories.
+12. **Export**: one STDF V4 per CP lot (MIR/MRR/PCR/HBR/SBR/WIR/WRR/WCR/PIR/PRR/PTR/TSR) plus one wide CSV per wafer; one long CSV per WAT lot; STDF/WAT file names use `{product}_{lot}_{phase}_{timestamp}.{ext}`, while CP CSV uses `{product}_{lot}_{wafer}_CP_{timestamp}.csv`; CP CSV uses the metadata / test-item / bin-definition / test-data block layout (see #23 and ADR-0005) and is always per wafer, with no split option; UTF-8 without BOM by default; ISO 8601 timestamps; dot decimals; standard STDF missing codes.
+13. **CLI**: `generate` / `validate` / `schema` / `version`; flags `--seed`, `--output`, `--formats`, `--lang`, `--log-level`, `--dry-run`, `--overwrite`, `--no-die-truth`; exit codes 0 success, 1 configuration error, 2 generation error, 3 export error; YAML is the only entry point; no fully flag-driven scenario assembly.
+14. **GUI**: single main window; scenario tree on the left; Wafer Map / Distribution / Correlation / Trend / Table tabs on the right; Generate runs in a worker thread with progress and cancel; Export dialog can override formats and ground-truth options; wafer map supports ground-truth overlay; scenario save/load and YAML editor; remembers language, layout, and recent directories.
 15. **Internationalization**: `en` default, `zh_CN` switchable; GUI uses Qt `.ts/.qm`, CLI/engine use gettext; stable shared error codes; logs stay English; item IDs, bin names, and column names in exports stay English; ISO 8601 dates and dot decimals; repository docs Chinese-first with a collapsed English version.
 16. **Dependencies and platforms**: Python 3.13; core dependencies `numpy`, `PyYAML`; GUI dependencies `PySide6-Essentials`, `pyqtgraph`; test dependencies `pytest`, `hypothesis`, `pytest-qt`, `pystdf` (GPL-2.0, test-only), optional `stdfast`; Windows 11 and macOS 14+ officially supported, Linux best-effort.
 17. **License and packaging**: project is MIT; avoid GPLv3-only modules such as QtCharts/QtGraphs/QtDataVisualization; link PySide6 dynamically and ship LGPL texts and notices; first release assumes PyInstaller `onedir`; the final packaging choice is deferred.
@@ -347,7 +347,7 @@ SiliconDraft is a scenario-driven synthetic CP/WAT test data generator with both
 
 ## Further Notes
 
-- Domain terms follow `GLOSSARY.md`; the test item catalog is in `docs/design/v1-test-item-catalog.md`; key decisions are in `docs/adr/0001-latent-factor-generation-model.md`, `0002-own-stdf-v4-writer.md`, and `0003-engine-gui-separation-and-i18n.md`.
+- Domain terms follow `GLOSSARY.md`; the test item catalog is in `docs/design/v1-test-item-catalog.md`; key decisions are in `docs/adr/0001-latent-factor-generation-model.md`, `0002-own-stdf-v4-writer.md`, `0003-engine-gui-separation-and-i18n.md`, `0004-pydantic-for-scenario-schema.md`, and `0005-cp-csv-multiblock-layout.md`; the CP CSV refinement is tracked in #23.
 - This issue is the canonical specification; the local `docs/design/v1-spec.md` remains as a design appendix.
 - The default 55 nm catalog's typical values and limits are illustrative and overridable; if a real test program becomes available, align to it first.
 - Packaging is deferred at the user's request; PyInstaller `onedir` is only a first-release working assumption and does not block the first six milestones.

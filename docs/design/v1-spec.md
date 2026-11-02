@@ -19,7 +19,7 @@ SiliconDraft 生成可复现的合成半导体测试数据，用于验证良率�
 - 系统性空间模式与随机缺陷，两者分开建模并可叠加。
 - Hard bin / soft bin。
 - Ground truth：JSON 摘要 + 每 die CSV.GZ。
-- 导出：CP 每个 lot 一个 STDF V4 + 一个 wide CSV；WAT 每个 lot 一个 long CSV。
+- 导出：CP 每个 lot 一个 STDF V4 + 每 wafer 一个 wide CSV；WAT 每个 lot 一个 long CSV。
 - CLI 与 GUI；英文默认、中文可切换；GUI 支持 ground truth 叠加。
 
 ### 2.2 Out of scope（V1）
@@ -54,6 +54,8 @@ SiliconDraft 生成可复现的合成半导体测试数据，用于验证良率�
 
 `schema_version`、`product`、`wafer`、`lots`、`items`、`patterns`、`linkage`、`export`、`seed`、`metadata`。
 
+`product.test_program` 为可选字段，表示测试程序名；未填写时回退为 `items.preset`。
+
 #### 4.1.3 预设
 
 - `quick`：1 lot × 25 wafers，无注入模式，用于快速验证。
@@ -70,6 +72,7 @@ product:
   device_family: cmos_logic
   process_node: "55nm"
   fab: FAB-A
+  test_program: GEN55LOGIC_CP
 
 wafer:
   diameter_mm: 300
@@ -115,7 +118,6 @@ export:
   cp_stdf: true
   cp_csv: true
   wat_csv: true
-  split_by_wafer: false
   ground_truth: true
   include_die_truth: true
   encoding: utf-8
@@ -177,7 +179,7 @@ V1 模式目录：`center-high`、`center-low`、`edge-high`、`edge-low`、`rin
 - Hard bin 默认：1=pass、2=parametric fail、3=functional/structural fail、4=continuity/contact fail。
 - Soft bin 默认：100=pass、201=continuity、202=leakage、203=Iddq、204=Vth、205=frequency、206=functional/scan、207=other parametric。
 - pass/fail 由 spec limits 与 bin 规则推导；bin 表可在 scenario 覆盖。
-- STDF 输出 HBR/SBR；CSV 同时包含 hard/soft bin 列。
+- STDF 输出 HBR/SBR；CSV 的 `[BIN_DEFINITIONS]` 块输出 bin 定义，`[TEST_DATA]` 同时包含 hard/soft bin 列。
 
 #### 4.4.6 可复现性
 
@@ -193,13 +195,18 @@ V1 模式目录：`center-high`、`center-low`、`edge-high`、`edge-low`、`rin
 ### 4.6 导出
 
 - **CP STDF V4**：MIR、MRR、PCR、HBR、SBR、WIR、WRR、WCR、PIR、PRR、PTR、TSR 全套。
-- **CP CSV**：每个 lot 一个 wide CSV，一行一颗 die；列包含 metadata、mm + grid 坐标、site、hard/soft bin、pass、每项一列。
+- **CP CSV**：每片 wafer 一个 wide CSV，采用四块布局（见 [ADR-0005](../adr/0005-cp-csv-multiblock-layout.md)）：
+  - `[METADATA]`：`key,value` 两列，记录 `csv_format_version`、`scenario_schema_version`、`phase`、`lot_id`、`product`、`device_family`、`process_node`、`fab`、`test_program`、`tester_type`、`exec_type`、`exec_version`、`generated_at`、`seed`、`scenario_sha256`、`wafer_id`、`diameter_mm`、`die_size_x_mm`、`die_size_y_mm`、`edge_exclusion_mm`、`notch`、`cp_sites`、`die_count`、`pass_count`、`yield`；键名与 STDF 字段的语义映射见 ADR-0005。
+  - `[TEST_ITEMS]`：`test_num,item_id,unit,typical,lsl,usl,description`，一行一个启用的 CP item，按 catalog 顺序。
+  - `[BIN_DEFINITIONS]`：`bin_type,bin_number,bin_name,pass_fail,hard_bin,description`，定义 hard bin 与未来的 soft bin 及其映射；`pass_fail` 用 `P`/`F`。
+  - `[TEST_DATA]`：一行一颗 die，列为 `die_x_mm,die_y_mm,grid_x,grid_y,test_site,hard_bin,pass` 加每个启用 item 一列。
+  - 每个块以独占一行的 `[SECTION]` 标记开头，随后是表头行与数据行；块间不放空行。
 - **WAT CSV**：每个 lot 一个 long CSV，一行 = wafer × site × item；列包含 site 的 mm 坐标、test_num、item_id、value、unit、LSL/USL、pass、timestamp。
-- 文件命名：`{product}_{lot}_{phase}_{timestamp}.{ext}`。
+- 文件命名：STDF 与 WAT CSV 为 `{product}_{lot}_{phase}_{timestamp}.{ext}`；CP CSV 为 `{product}_{lot}_{wafer}_CP_{timestamp}.csv`。
 - 默认 UTF-8 无 BOM；可选 BOM 以兼容 Excel。
-- `--split-by-wafer` 可按 wafer 拆分 CSV。
-- 时间戳：CSV 用 ISO 8601；STDF 用其标准时间格式。
-- 数值：CSV 使用点号小数；缺失值留空；STDF 使用标准 missing code。
+- CP CSV 固定按 wafer 输出；不提供合并为 lot 文件的选项。
+- 时间戳：CSV 用 ISO 8601（UTC）；STDF 用其标准时间格式。
+- 数值：CSV 使用点号小数；缺失值留空；`yield` 为 0–1 的分数、保留 6 位小数；STDF 使用标准 missing code。
 
 ### 4.7 CLI
 
@@ -210,7 +217,7 @@ silicondraft schema
 silicondraft version
 ```
 
-常用参数：`--seed`、`--output`、`--formats stdf,csv`、`--split-by-wafer`、`--lang en|zh`、`--log-level`、`--dry-run`、`--overwrite`、`--no-die-truth`。
+常用参数：`--seed`、`--output`、`--formats stdf,csv`、`--lang en|zh`、`--log-level`、`--dry-run`、`--overwrite`、`--no-die-truth`。
 
 - `generate` 一步完成生成与导出。
 - `validate` 只校验并打印摘要（die 数、item 数、预计文件大小/耗时）。
@@ -223,7 +230,7 @@ silicondraft version
 - 预览 tab：Wafer Map、Distribution、Correlation、Trend、Table。
 - 配置以表单为主；另提供 YAML 编辑器对话框，加载/保存同一 scenario。
 - Generate 在 worker 线程运行，支持进度与取消；完成后填充预览，Export 才可用。
-- Export 对话框：输出目录、格式、split-by-wafer、ground truth、die truth；可覆盖当前 scenario 的导出选项。
+- Export 对话框：输出目录、格式、ground truth、die truth；可覆盖当前 scenario 的导出选项。
 - Wafer Map 支持按 bin 或选定 item 着色；支持 ground truth 模式叠加开关。
 - 预览使用降采样；数据表分页。
 - 记住语言、窗口布局与最近目录。
@@ -355,7 +362,7 @@ SiliconDraft generates reproducible synthetic semiconductor test data to validat
 - Systematic spatial patterns and random defects modeled separately and composable.
 - Hard bin / soft bin.
 - Ground truth: JSON summary + per-die CSV.GZ.
-- Export: one STDF V4 + one wide CSV per CP lot; one long CSV per WAT lot.
+- Export: one STDF V4 per CP lot plus one wide CSV per wafer; one long CSV per WAT lot.
 - CLI and GUI; English-first with a Chinese switch; GUI ground-truth overlay.
 
 ### 2.2 Out of scope (V1)
@@ -390,6 +397,8 @@ Terminology follows [GLOSSARY.md](../../GLOSSARY.md). Core relationships:
 
 `schema_version`, `product`, `wafer`, `lots`, `items`, `patterns`, `linkage`, `export`, `seed`, `metadata`.
 
+`product.test_program` is optional and names the test program; when omitted it falls back to `items.preset`.
+
 #### 4.1.3 Presets
 
 - `quick`: 1 lot × 25 wafers, no injected patterns, for fast validation.
@@ -406,6 +415,7 @@ product:
   device_family: cmos_logic
   process_node: "55nm"
   fab: FAB-A
+  test_program: GEN55LOGIC_CP
 
 wafer:
   diameter_mm: 300
@@ -451,7 +461,6 @@ export:
   cp_stdf: true
   cp_csv: true
   wat_csv: true
-  split_by_wafer: false
   ground_truth: true
   include_die_truth: true
   encoding: utf-8
@@ -513,7 +522,7 @@ V1 pattern catalog: `center-high`, `center-low`, `edge-high`, `edge-low`, `ring`
 - Default hard bins: 1=pass, 2=parametric fail, 3=functional/structural fail, 4=continuity/contact fail.
 - Default soft bins: 100=pass, 201=continuity, 202=leakage, 203=Iddq, 204=Vth, 205=frequency, 206=functional/scan, 207=other parametric.
 - Pass/fail is derived from spec limits and bin rules; the bin table is overridable in the scenario.
-- STDF writes HBR/SBR; CSV includes hard/soft bin columns.
+- STDF writes HBR/SBR; the CSV `[BIN_DEFINITIONS]` block carries bin definitions, and `[TEST_DATA]` includes hard/soft bin columns.
 
 #### 4.4.6 Reproducibility
 
@@ -529,13 +538,18 @@ V1 pattern catalog: `center-high`, `center-low`, `edge-high`, `edge-low`, `ring`
 ### 4.6 Export
 
 - **CP STDF V4**: MIR, MRR, PCR, HBR, SBR, WIR, WRR, WCR, PIR, PRR, PTR, TSR.
-- **CP CSV**: one wide CSV per lot, one row per die; metadata, mm + grid coordinates, site, hard/soft bin, pass, and one column per item.
+- **CP CSV**: one wide CSV per wafer with a four-block layout (see [ADR-0005](../adr/0005-cp-csv-multiblock-layout.md)):
+  - `[METADATA]`: `key,value` rows carrying `csv_format_version`, `scenario_schema_version`, `phase`, `lot_id`, `product`, `device_family`, `process_node`, `fab`, `test_program`, `tester_type`, `exec_type`, `exec_version`, `generated_at`, `seed`, `scenario_sha256`, `wafer_id`, `diameter_mm`, `die_size_x_mm`, `die_size_y_mm`, `edge_exclusion_mm`, `notch`, `cp_sites`, `die_count`, `pass_count`, and `yield`; the semantic mapping to STDF fields is documented in ADR-0005.
+  - `[TEST_ITEMS]`: `test_num,item_id,unit,typical,lsl,usl,description`, one row per enabled CP item in catalog order.
+  - `[BIN_DEFINITIONS]`: `bin_type,bin_number,bin_name,pass_fail,hard_bin,description`, defining hard bins and, later, soft bins and their mapping; `pass_fail` uses `P`/`F`.
+  - `[TEST_DATA]`: one row per die with `die_x_mm,die_y_mm,grid_x,grid_y,test_site,hard_bin,pass` plus one column per enabled item.
+  - Each block starts with a standalone `[SECTION]` marker row, followed by a header row and data rows; no blank lines between blocks.
 - **WAT CSV**: one long CSV per lot, one row per wafer × site × item; site mm coordinates, test_num, item_id, value, unit, LSL/USL, pass, timestamp.
-- File naming: `{product}_{lot}_{phase}_{timestamp}.{ext}`.
+- File naming: `{product}_{lot}_{phase}_{timestamp}.{ext}` for STDF and WAT CSV; `{product}_{lot}_{wafer}_CP_{timestamp}.csv` for CP CSV.
 - UTF-8 without BOM by default; optional BOM for Excel compatibility.
-- `--split-by-wafer` splits CSV by wafer.
-- Timestamps: ISO 8601 in CSV; STDF standard time format.
-- Numbers: dot decimal in CSV; empty cells for missing values; standard STDF missing codes.
+- CP CSV is always per wafer; there is no option to merge it into a lot file.
+- Timestamps: ISO 8601 (UTC) in CSV; STDF standard time format.
+- Numbers: dot decimal in CSV; empty cells for missing values; `yield` is a 0–1 fraction with six decimal places; standard STDF missing codes.
 
 ### 4.7 CLI
 
@@ -546,7 +560,7 @@ silicondraft schema
 silicondraft version
 ```
 
-Common flags: `--seed`, `--output`, `--formats stdf,csv`, `--split-by-wafer`, `--lang en|zh`, `--log-level`, `--dry-run`, `--overwrite`, `--no-die-truth`.
+Common flags: `--seed`, `--output`, `--formats stdf,csv`, `--lang en|zh`, `--log-level`, `--dry-run`, `--overwrite`, `--no-die-truth`.
 
 - `generate` performs generation and export in one step.
 - `validate` validates and prints a summary (die count, item count, estimated file size/runtime).
@@ -559,7 +573,7 @@ Common flags: `--seed`, `--output`, `--formats stdf,csv`, `--split-by-wafer`, `-
 - Preview tabs: Wafer Map, Distribution, Correlation, Trend, Table.
 - Form-based configuration plus a YAML editor dialog loading/saving the same scenario.
 - Generate runs in a worker thread with progress and cancel; preview fills on completion and Export becomes available.
-- Export dialog: output directory, formats, split-by-wafer, ground truth, die truth; it may override the scenario's export options for the current run.
+- Export dialog: output directory, formats, ground truth, die truth; it may override the scenario's export options for the current run.
 - Wafer Map colours by bin or selected item; optional ground-truth overlay.
 - Preview uses downsampling; the table is paginated.
 - Remembers language, window layout, and recent directories.
