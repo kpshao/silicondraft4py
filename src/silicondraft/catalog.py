@@ -4,11 +4,16 @@ V1 ships one preset, ``generic_cmos_logic_55nm``: 15 WAT items and 21 CP
 items. Scenario overrides patch or extend the selected preset.
 """
 
+from __future__ import annotations
+
 import re
 from dataclasses import dataclass, replace
+from typing import TYPE_CHECKING
 
 from .errors import ValidationIssue
-from .scenario.models import Distribution, ItemOverride, Items, TestPhase
+
+if TYPE_CHECKING:
+    from .scenario.models import Distribution, ItemOverride, Items, TestPhase
 
 
 @dataclass(frozen=True, slots=True)

@@ -7,7 +7,16 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import NoReturn
 
-from . import __version__, scenario_schema, validate_scenario
+from . import (
+    ValidationIssue,
+    __version__,
+    export,
+    generate,
+    load_scenario,
+    scenario_schema,
+    validate_scenario,
+)
+from .errors import ScenarioError
 
 
 class _ArgumentParser(argparse.ArgumentParser):
@@ -31,6 +40,24 @@ def build_parser() -> argparse.ArgumentParser:
     )
     subparsers = parser.add_subparsers(dest="command", metavar="COMMAND")
 
+    generate_parser = subparsers.add_parser("generate", help="generate data and write CP wide CSV")
+    generate_parser.add_argument(
+        "-c",
+        "--config",
+        required=True,
+        type=Path,
+        metavar="SCENARIO",
+        help="path to the scenario YAML file",
+    )
+    generate_parser.add_argument(
+        "-o",
+        "--output",
+        required=True,
+        type=Path,
+        metavar="DIR",
+        help="directory for exported files",
+    )
+
     validate_parser = subparsers.add_parser("validate", help="validate a scenario YAML file")
     validate_parser.add_argument(
         "-c",
@@ -52,6 +79,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     match args.command:
+        case "generate":
+            return _generate(args.config, args.output)
         case "validate":
             return _validate(args.config)
         case "schema":
@@ -63,15 +92,41 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 1
 
 
+def _generate(scenario_path: Path, output_dir: Path) -> int:
+    try:
+        scenario = load_scenario(scenario_path)
+    except ScenarioError as exc:
+        _print_invalid(scenario_path, exc.issues)
+        return 1
+
+    try:
+        result = generate(scenario)
+    except ScenarioError as exc:
+        _print_invalid(scenario_path, exc.issues)
+        return 1
+    except Exception as exc:
+        print(f"generation failed: {exc}", file=sys.stderr)
+        return 2
+
+    try:
+        paths = export(result, output_dir)
+    except Exception as exc:
+        print(f"export failed: {exc}", file=sys.stderr)
+        return 3
+
+    wafers = sum(len(lot.wafers) for lot in result.lots)
+    dies = sum(wafer.die_count for lot in result.lots for wafer in lot.wafers)
+    print(f"scenario: OK ({scenario_path})")
+    print(f"generated: {len(result.lots)} lot(s), {wafers} wafer(s), {dies} die(s)")
+    for path in paths:
+        print(f"exported: {path}")
+    return 0
+
+
 def _validate(scenario_path: Path) -> int:
     result = validate_scenario(scenario_path)
     if not result.ok:
-        print(f"scenario: INVALID ({scenario_path})", file=sys.stderr)
-        for issue in result.issues:
-            print(
-                f"  {issue.path}: {issue.message} [{issue.code}]",
-                file=sys.stderr,
-            )
+        _print_invalid(scenario_path, result.issues)
         return 1
 
     summary = result.summary
@@ -91,6 +146,15 @@ def _validate(scenario_path: Path) -> int:
     print(f"  wat_items: {summary.wat_items}")
     print(f"  items_total: {summary.items_total}")
     return 0
+
+
+def _print_invalid(scenario_path: Path, issues: Sequence[ValidationIssue]) -> None:
+    print(f"scenario: INVALID ({scenario_path})", file=sys.stderr)
+    for issue in issues:
+        print(
+            f"  {issue.path}: {issue.message} [{issue.code}]",
+            file=sys.stderr,
+        )
 
 
 def _schema() -> int:

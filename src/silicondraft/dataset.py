@@ -1,0 +1,57 @@
+"""Columnar data produced by the generation engine."""
+
+from collections.abc import Mapping
+from dataclasses import dataclass
+from datetime import datetime
+
+import numpy as np
+from numpy.typing import NDArray
+
+from .catalog import CatalogItem
+from .scenario.models import Scenario
+
+FloatArray = NDArray[np.float64]
+IntArray = NDArray[np.int64]
+BoolArray = NDArray[np.bool_]
+
+
+@dataclass(frozen=True, slots=True)
+class CPWafer:
+    """CP measurements for one wafer: one row per die."""
+
+    wafer_id: str
+    x_mm: FloatArray
+    y_mm: FloatArray
+    grid_x: IntArray
+    grid_y: IntArray
+    test_site: IntArray
+    hard_bin: IntArray
+    passed: BoolArray
+    values: Mapping[str, FloatArray]
+
+    @property
+    def die_count(self) -> int:
+        """Number of dies measured on this wafer."""
+        return int(self.x_mm.size)
+
+
+@dataclass(frozen=True, slots=True)
+class CPLot:
+    """CP measurements for one lot."""
+
+    lot_id: str
+    wafers: tuple[CPWafer, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class GenerationResult:
+    """The output of one generation run.
+
+    ``items`` holds the enabled CP items in catalog order; ``CPWafer.values``
+    maps each item ID to its per-die measurement column.
+    """
+
+    scenario: Scenario
+    items: tuple[CatalogItem, ...]
+    lots: tuple[CPLot, ...]
+    generated_at: datetime

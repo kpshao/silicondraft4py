@@ -26,3 +26,7 @@ class ScenarioError(ValueError):
             f"{issue.path}: {issue.message} [{issue.code}]" for issue in self.issues
         )
         super().__init__(f"invalid scenario: {details}")
+
+
+class ExportError(RuntimeError):
+    """Raised when generated data cannot be exported."""
