@@ -40,7 +40,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     subparsers = parser.add_subparsers(dest="command", metavar="COMMAND")
 
-    generate_parser = subparsers.add_parser("generate", help="generate data and write CP wide CSV")
+    generate_parser = subparsers.add_parser("generate", help="generate data and write CP CSV")
     generate_parser.add_argument(
         "-c",
         "--config",

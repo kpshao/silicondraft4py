@@ -1,5 +1,6 @@
 import csv
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -119,7 +120,7 @@ def _write_tiny_scenario(tmp_path: Path) -> Path:
     return path
 
 
-def test_generate_writes_cp_csv_and_exits_zero(
+def test_generate_writes_multiblock_cp_csv_and_exits_zero(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     scenario_path = _write_tiny_scenario(tmp_path)
@@ -132,10 +133,28 @@ def test_generate_writes_cp_csv_and_exits_zero(
     assert captured.err == ""
     paths = list(output_dir.glob("*.csv"))
     assert len(paths) == 1
+    assert re.fullmatch(r"GEN55LOGIC_GEN55LOGIC-L001_W01_CP_\d{8}T\d{12}Z\.csv", paths[0].name)
+
     with paths[0].open(encoding="utf-8", newline="") as stream:
-        rows = list(csv.DictReader(stream))
-    assert len(rows) == 2700
-    assert {"lot_id", "wafer_id", "hard_bin", "CP_VTHN"} <= set(rows[0])
+        rows = list(csv.reader(stream))
+    markers = [
+        row[0] for row in rows if len(row) == 1 and row[0].startswith("[") and row[0].endswith("]")
+    ]
+    assert markers == ["[METADATA]", "[TEST_ITEMS]", "[BIN_DEFINITIONS]", "[TEST_DATA]"]
+
+    data_start = rows.index(["[TEST_DATA]"])
+    assert rows[data_start + 1][:7] == [
+        "die_x_mm",
+        "die_y_mm",
+        "grid_x",
+        "grid_y",
+        "test_site",
+        "hard_bin",
+        "pass",
+    ]
+    assert "lot_id" not in rows[data_start + 1]
+    assert "wafer_id" not in rows[data_start + 1]
+    assert len(rows) - (data_start + 2) == 2700
 
 
 def test_generate_maps_export_failures_to_exit_three(

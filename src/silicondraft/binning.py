@@ -6,6 +6,7 @@ values and spec limits; generation never writes a bin directly.
 """
 
 from collections.abc import Mapping
+from dataclasses import dataclass
 
 import numpy as np
 from numpy.typing import NDArray
@@ -23,6 +24,24 @@ CONTINUITY_FAIL = 4
 
 _CONTINUITY_ITEM_ID = "CP_CONT"
 _FUNCTIONAL_ITEM_IDS = frozenset({"CP_FUNC", "CP_SCAN"})
+
+
+@dataclass(frozen=True, slots=True)
+class BinDefinition:
+    """One hard-bin definition carried into exported files."""
+
+    number: int
+    name: str
+    passed: bool
+    description: str
+
+
+HARD_BIN_DEFINITIONS: tuple[BinDefinition, ...] = (
+    BinDefinition(PASS, "PASS", True, "Pass"),
+    BinDefinition(PARAMETRIC_FAIL, "PARAMETRIC_FAIL", False, "Parametric failure"),
+    BinDefinition(FUNCTIONAL_FAIL, "FUNCTIONAL_FAIL", False, "Functional or structural failure"),
+    BinDefinition(CONTINUITY_FAIL, "CONTINUITY_FAIL", False, "Continuity or contact failure"),
+)
 
 
 def classify_hard_bins(

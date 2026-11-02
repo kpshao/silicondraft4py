@@ -1,26 +1,122 @@
 import csv
 import math
+import re
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import numpy as np
 import pytest
 
-from silicondraft import Scenario, ScenarioError, export, generate, load_scenario
+from silicondraft import GenerationResult, Scenario, ScenarioError, export, generate, load_scenario
 
-SCENARIO = """\
-schema_version: 1
-product:
-  name: GEN55LOGIC
-lots:
-  wafers_per_lot: 1
-seed: 20260105
-"""
+_METADATA_KEYS = [
+    "csv_format_version",
+    "scenario_schema_version",
+    "phase",
+    "lot_id",
+    "product",
+    "device_family",
+    "process_node",
+    "fab",
+    "test_program",
+    "tester_type",
+    "exec_type",
+    "exec_version",
+    "generated_at",
+    "seed",
+    "scenario_sha256",
+    "wafer_id",
+    "diameter_mm",
+    "die_size_x_mm",
+    "die_size_y_mm",
+    "edge_exclusion_mm",
+    "notch",
+    "cp_sites",
+    "die_count",
+    "pass_count",
+    "yield",
+]
+_TIMESTAMP_PATTERN = r"\d{8}T\d{12}Z"
 
 
-def _write_scenario(tmp_path: Path) -> Path:
+def _write_scenario(
+    tmp_path: Path,
+    *,
+    wafers_per_lot: int = 1,
+    test_program: str | None = None,
+    cp_vthn_usl: float | None = None,
+    encoding: str | None = None,
+) -> Path:
+    lines = [
+        "schema_version: 1",
+        "product:",
+        "  name: GEN55LOGIC",
+    ]
+    if test_program is not None:
+        lines.append(f"  test_program: {test_program}")
+    lines.extend(
+        [
+            "lots:",
+            f"  wafers_per_lot: {wafers_per_lot}",
+        ]
+    )
+    if cp_vthn_usl is not None:
+        lines.extend(
+            [
+                "items:",
+                "  overrides:",
+                "    - id: CP_VTHN",
+                f"      usl: {cp_vthn_usl}",
+            ]
+        )
+    if encoding is not None:
+        lines.extend(["export:", f"  encoding: {encoding}"])
+    lines.append("seed: 20260105")
     path = tmp_path / "tiny.yaml"
-    path.write_text(SCENARIO, encoding="utf-8")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return path
+
+
+def _read_blocks(path: Path) -> tuple[list[str], dict[str, list[list[str]]]]:
+    with path.open(encoding="utf-8", newline="") as stream:
+        rows = list(csv.reader(stream))
+
+    markers: list[str] = []
+    blocks: dict[str, list[list[str]]] = {}
+    current: str | None = None
+    for row in rows:
+        assert row, "CSV must not contain blank lines"
+        if len(row) == 1 and row[0].startswith("[") and row[0].endswith("]"):
+            current = row[0]
+            markers.append(current)
+            blocks[current] = []
+        else:
+            assert current is not None, f"data row outside a block: {row!r}"
+            blocks[current].append(row)
+    return markers, blocks
+
+
+def _single_csv(
+    tmp_path: Path,
+    *,
+    wafers_per_lot: int = 1,
+    test_program: str | None = None,
+    cp_vthn_usl: float | None = None,
+    encoding: str | None = None,
+) -> tuple[Path, GenerationResult]:
+    scenario = load_scenario(
+        _write_scenario(
+            tmp_path,
+            wafers_per_lot=wafers_per_lot,
+            test_program=test_program,
+            cp_vthn_usl=cp_vthn_usl,
+            encoding=encoding,
+        )
+    )
+    result = generate(scenario)
+    paths = export(result, tmp_path / "out")
+    assert len(paths) == 1
+    return paths[0], result
 
 
 def test_generate_returns_one_row_per_die(tmp_path: Path) -> None:
@@ -50,23 +146,181 @@ def test_generate_returns_one_row_per_die(tmp_path: Path) -> None:
         assert len(wafer.values[item.id]) == 2700
 
 
-def test_export_writes_one_wide_csv_row_per_die(tmp_path: Path) -> None:
-    result = generate(load_scenario(_write_scenario(tmp_path)))
+def test_export_writes_one_multiblock_csv_per_wafer(tmp_path: Path) -> None:
+    scenario = load_scenario(_write_scenario(tmp_path, wafers_per_lot=2))
+    result = generate(scenario)
 
     paths = export(result, tmp_path / "out")
 
-    assert len(paths) == 1
-    path = paths[0]
-    assert path.exists()
-    assert path.suffix == ".csv"
-    assert "_CP_" in path.name
-    with path.open(encoding="utf-8", newline="") as stream:
-        rows = list(csv.DictReader(stream))
+    assert len(paths) == 2
+    names = sorted(path.name for path in paths)
+    name_pattern = re.compile(rf"^GEN55LOGIC_GEN55LOGIC-L001_W0[12]_CP_{_TIMESTAMP_PATTERN}\.csv$")
+    assert all(name_pattern.fullmatch(name) for name in names)
+    timestamps = {re.search(_TIMESTAMP_PATTERN, name).group() for name in names}  # type: ignore[union-attr]
+    assert len(timestamps) == 1
+    wafer_ids = set()
+    for path in paths:
+        markers, blocks = _read_blocks(path)
+        assert markers == ["[METADATA]", "[TEST_ITEMS]", "[BIN_DEFINITIONS]", "[TEST_DATA]"]
+        metadata = dict(blocks["[METADATA]"][1:])
+        wafer_ids.add(metadata["wafer_id"])
+        assert f"_{metadata['wafer_id']}_CP_" in path.name
+        assert metadata["die_count"] == "2700"
+        assert metadata["yield"] == f"{int(metadata['pass_count']) / 2700:.6f}"
+    assert wafer_ids == {"W01", "W02"}
 
-    assert len(rows) == 2700
-    expected_columns = [
-        "lot_id",
-        "wafer_id",
+
+def test_export_encoding_controls_the_bom(tmp_path: Path) -> None:
+    default_path, _ = _single_csv(tmp_path)
+    assert not default_path.read_bytes().startswith(b"\xef\xbb\xbf")
+
+    bom_path, _ = _single_csv(tmp_path, encoding="utf-8-sig")
+    data = bom_path.read_bytes()
+    assert data.startswith(b"\xef\xbb\xbf")
+    assert data.decode("utf-8-sig").startswith("[METADATA]\n")
+
+
+def test_metadata_block_contains_scenario_and_wafer_fields(tmp_path: Path) -> None:
+    path, result = _single_csv(tmp_path)
+    _, blocks = _read_blocks(path)
+
+    metadata = blocks["[METADATA]"]
+    assert metadata[0] == ["key", "value"]
+    assert [key for key, _ in metadata[1:]] == _METADATA_KEYS
+    values = dict(metadata[1:])
+
+    assert values["csv_format_version"] == "1"
+    assert values["scenario_schema_version"] == "1"
+    assert values["phase"] == "CP"
+    assert values["lot_id"] == "GEN55LOGIC-L001"
+    assert values["product"] == "GEN55LOGIC"
+    assert values["device_family"] == ""
+    assert values["process_node"] == ""
+    assert values["fab"] == ""
+    assert values["test_program"] == "generic_cmos_logic_55nm"
+    assert values["tester_type"] == "SIM"
+    assert values["exec_type"] == "SiliconDraft"
+    assert values["exec_version"]
+    generated_at = datetime.fromisoformat(values["generated_at"])
+    assert generated_at.tzinfo is not None
+    assert generated_at.utcoffset() == timedelta(0)
+    assert values["seed"] == "20260105"
+    assert re.fullmatch(r"[0-9a-f]{64}", values["scenario_sha256"])
+    assert values["wafer_id"] == "W01"
+    assert values["diameter_mm"] == "300"
+    assert values["die_size_x_mm"] == "5"
+    assert values["die_size_y_mm"] == "5"
+    assert values["edge_exclusion_mm"] == "3"
+    assert values["notch"] == "down"
+    assert values["cp_sites"] == "4"
+    assert values["die_count"] == "2700"
+
+    wafer = result.lots[0].wafers[0]
+    assert values["pass_count"] == str(wafer.pass_count)
+    assert values["yield"] == f"{wafer.yield_fraction:.6f}"
+
+
+def test_metadata_yield_is_a_fraction_with_six_decimals(tmp_path: Path) -> None:
+    path, result = _single_csv(tmp_path, cp_vthn_usl=0.36)
+    _, blocks = _read_blocks(path)
+
+    values = dict(blocks["[METADATA]"][1:])
+    wafer = result.lots[0].wafers[0]
+
+    assert 0 < wafer.pass_count < wafer.die_count
+    assert values["pass_count"] == str(wafer.pass_count)
+    assert values["yield"] == f"{wafer.yield_fraction:.6f}"
+    assert re.fullmatch(r"0\.\d{6}", values["yield"])
+
+
+def test_test_program_falls_back_to_items_preset(tmp_path: Path) -> None:
+    path, _ = _single_csv(tmp_path)
+    _, blocks = _read_blocks(path)
+
+    values = dict(blocks["[METADATA]"][1:])
+
+    assert values["test_program"] == "generic_cmos_logic_55nm"
+
+
+def test_configured_test_program_is_used(tmp_path: Path) -> None:
+    path, _ = _single_csv(tmp_path, test_program="GEN55LOGIC_CP")
+    _, blocks = _read_blocks(path)
+
+    values = dict(blocks["[METADATA]"][1:])
+
+    assert values["test_program"] == "GEN55LOGIC_CP"
+
+
+def test_test_items_block_lists_every_enabled_cp_item(tmp_path: Path) -> None:
+    path, result = _single_csv(tmp_path)
+    _, blocks = _read_blocks(path)
+
+    test_items = blocks["[TEST_ITEMS]"]
+    assert test_items[0] == [
+        "test_num",
+        "item_id",
+        "unit",
+        "typical",
+        "lsl",
+        "usl",
+        "description",
+    ]
+    assert [row[1] for row in test_items[1:]] == [item.id for item in result.items]
+    for row, item in zip(test_items[1:], result.items, strict=True):
+        assert int(row[0]) == item.test_num
+        assert row[2] == item.unit
+        assert float(row[3]) == pytest.approx(item.typical)
+        assert (row[4] == "") is (item.lsl is None)
+        assert (row[5] == "") is (item.usl is None)
+        if item.lsl is not None:
+            assert float(row[4]) == pytest.approx(item.lsl)
+        if item.usl is not None:
+            assert float(row[5]) == pytest.approx(item.usl)
+        assert row[6] == item.description
+
+
+def test_test_items_block_leaves_unbounded_limits_empty(tmp_path: Path) -> None:
+    path, _ = _single_csv(tmp_path)
+    _, blocks = _read_blocks(path)
+
+    rows = {row[1]: row for row in blocks["[TEST_ITEMS]"][1:]}
+
+    assert rows["CP_CONT"][4] == ""
+    assert rows["CP_CONT"][5] == "100"
+    assert rows["CP_VTHN"][4] == "0.28"
+    assert rows["CP_VTHN"][5] == "0.42"
+    assert rows["CP_FUNC"][4] == ""
+    assert rows["CP_FUNC"][5] == ""
+
+
+def test_bin_definitions_block_lists_hard_bins(tmp_path: Path) -> None:
+    path, _ = _single_csv(tmp_path)
+    _, blocks = _read_blocks(path)
+
+    definitions = blocks["[BIN_DEFINITIONS]"]
+    assert definitions[0] == [
+        "bin_type",
+        "bin_number",
+        "bin_name",
+        "pass_fail",
+        "hard_bin",
+        "description",
+    ]
+    assert [(row[0], row[1], row[2], row[3], row[4]) for row in definitions[1:]] == [
+        ("HARD", "1", "PASS", "P", "1"),
+        ("HARD", "2", "PARAMETRIC_FAIL", "F", "2"),
+        ("HARD", "3", "FUNCTIONAL_FAIL", "F", "3"),
+        ("HARD", "4", "CONTINUITY_FAIL", "F", "4"),
+    ]
+
+
+def test_test_data_block_has_one_row_per_die_with_spec_columns(tmp_path: Path) -> None:
+    path, result = _single_csv(tmp_path)
+    _, blocks = _read_blocks(path)
+    wafer = result.lots[0].wafers[0]
+
+    test_data = blocks["[TEST_DATA]"]
+    assert test_data[0] == [
         "die_x_mm",
         "die_y_mm",
         "grid_x",
@@ -76,26 +330,29 @@ def test_export_writes_one_wide_csv_row_per_die(tmp_path: Path) -> None:
         "pass",
         *(item.id for item in result.items),
     ]
-    assert list(rows[0]) == expected_columns
-    assert {row["lot_id"] for row in rows} == {"GEN55LOGIC-L001"}
-    assert {row["wafer_id"] for row in rows} == {"W01"}
-    assert len({(row["grid_x"], row["grid_y"]) for row in rows}) == len(rows)
+    assert len(test_data) - 1 == 2700
+    assert "lot_id" not in test_data[0]
+    assert "wafer_id" not in test_data[0]
 
-    wafer = result.lots[0].wafers[0]
-    assert float(rows[0]["die_x_mm"]) == pytest.approx(float(wafer.x_mm[0]))
-    assert int(rows[0]["hard_bin"]) == int(wafer.hard_bin[0])
-    for item in result.items:
-        assert float(rows[0][item.id]) == pytest.approx(float(wafer.values[item.id][0]), rel=1e-9)
-    for row in rows:
-        assert row["hard_bin"] in {"1", "2", "3", "4"}
-        assert row["pass"] == ("1" if row["hard_bin"] == "1" else "0")
-        assert math.isfinite(float(row["die_x_mm"]))
-        assert math.isfinite(float(row["die_y_mm"]))
-        for item in result.items:
-            assert math.isfinite(float(row[item.id]))
+    for index, row in enumerate(test_data[1:]):
+        assert float(row[0]) == pytest.approx(float(wafer.x_mm[index]))
+        assert float(row[1]) == pytest.approx(float(wafer.y_mm[index]))
+        assert int(row[2]) == int(wafer.grid_x[index])
+        assert int(row[3]) == int(wafer.grid_y[index])
+        assert int(row[4]) == int(wafer.test_site[index])
+        assert int(row[5]) == int(wafer.hard_bin[index])
+        assert row[6] == ("1" if row[5] == "1" else "0")
+        assert math.isfinite(float(row[0]))
+        assert math.isfinite(float(row[1]))
+        for column, item in enumerate(result.items, start=7):
+            assert float(row[column]) == pytest.approx(
+                float(wafer.values[item.id][index]), rel=1e-9
+            )
 
 
-def test_same_scenario_and_seed_produce_identical_data(tmp_path: Path) -> None:
+def test_same_scenario_and_seed_produce_identical_data_except_timestamps(
+    tmp_path: Path,
+) -> None:
     scenario = load_scenario(_write_scenario(tmp_path))
 
     first = generate(scenario)
@@ -109,9 +366,21 @@ def test_same_scenario_and_seed_produce_identical_data(tmp_path: Path) -> None:
     for item in first.items:
         np.testing.assert_array_equal(first_wafer.values[item.id], second_wafer.values[item.id])
 
-    first_csv = export(first, tmp_path / "first")[0]
-    second_csv = export(second, tmp_path / "second")[0]
-    assert first_csv.read_bytes() == second_csv.read_bytes()
+    first_path = export(first, tmp_path / "first")[0]
+    second_path = export(second, tmp_path / "second")[0]
+    assert re.sub(_TIMESTAMP_PATTERN, "<timestamp>", first_path.name) == re.sub(
+        _TIMESTAMP_PATTERN, "<timestamp>", second_path.name
+    )
+
+    _, first_blocks = _read_blocks(first_path)
+    _, second_blocks = _read_blocks(second_path)
+    first_metadata = dict(first_blocks["[METADATA]"][1:])
+    second_metadata = dict(second_blocks["[METADATA]"][1:])
+    datetime.fromisoformat(first_metadata.pop("generated_at"))
+    datetime.fromisoformat(second_metadata.pop("generated_at"))
+    assert first_metadata == second_metadata
+    for block in ("[TEST_ITEMS]", "[BIN_DEFINITIONS]", "[TEST_DATA]"):
+        assert first_blocks[block] == second_blocks[block]
 
 
 def test_different_seed_changes_cp_data(tmp_path: Path) -> None:

@@ -1,3 +1,4 @@
+import json
 from typing import Any
 
 import yaml
@@ -40,6 +41,31 @@ def test_schema_accepts_a_minimal_scenario() -> None:
     )
 
     Draft202012Validator(scenario_schema()).validate(document)
+
+
+def test_schema_exposes_an_optional_product_test_program() -> None:
+    schema = scenario_schema()
+
+    product = schema["$defs"]["Product"]
+    assert "test_program" in product["properties"]
+    assert product["properties"]["test_program"]["type"] == "string"
+    assert "test_program" not in product.get("required", [])
+
+
+def test_schema_does_not_expose_split_by_wafer() -> None:
+    schema = scenario_schema()
+
+    assert "split_by_wafer" not in json.dumps(schema)
+    document: Any = yaml.safe_load(
+        "schema_version: 1\nproduct:\n  name: GEN55LOGIC\n"
+        "export:\n  split_by_wafer: true\nseed: 1\n"
+    )
+
+    errors = list(Draft202012Validator(schema).iter_errors(document))
+
+    assert len(errors) == 1
+    assert errors[0].validator == "additionalProperties"
+    assert "split_by_wafer" in errors[0].message
 
 
 def test_schema_rejects_an_unknown_section() -> None:
