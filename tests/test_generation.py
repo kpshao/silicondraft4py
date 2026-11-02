@@ -350,6 +350,31 @@ def test_test_data_block_has_one_row_per_die_with_spec_columns(tmp_path: Path) -
             )
 
 
+def test_test_data_coordinates_follow_plus_x_right_and_plus_y_up(tmp_path: Path) -> None:
+    path, _ = _single_csv(tmp_path)
+    _, blocks = _read_blocks(path)
+    rows = blocks["[TEST_DATA]"][1:]
+
+    die_width_mm, die_height_mm = 5.0, 5.0
+    columns = math.floor(300 / die_width_mm)
+    rows_count = math.floor(300 / die_height_mm)
+    xs = [float(row[0]) for row in rows]
+    ys = [float(row[1]) for row in rows]
+    grid_x = [int(row[2]) for row in rows]
+    grid_y = [int(row[3]) for row in rows]
+
+    assert all(
+        math.isclose(x, (column - (columns - 1) / 2) * die_width_mm)
+        for x, column in zip(xs, grid_x, strict=True)
+    )
+    assert all(
+        math.isclose(y, (row - (rows_count - 1) / 2) * die_height_mm)
+        for y, row in zip(ys, grid_y, strict=True)
+    )
+    assert ys == sorted(ys)
+    assert min(ys) < 0 < max(ys)
+
+
 def test_same_scenario_and_seed_produce_identical_data_except_timestamps(
     tmp_path: Path,
 ) -> None:
