@@ -71,11 +71,16 @@ def _load_and_validate(
         scenario = parse_scenario(read_scenario_data(path))
     except ScenarioError as exc:
         return ValidationResult(ok=False, issues=exc.issues, summary=None), None
-    result = _validate_scenario(scenario)
+    result = validate_scenario_model(scenario)
     return result, scenario if result.ok else None
 
 
-def _validate_scenario(scenario: Scenario) -> ValidationResult:
+def validate_scenario_model(scenario: Scenario) -> ValidationResult:
+    """Validate a typed scenario, including rules that span fields.
+
+    ``generate`` uses this even for hand-built ``Scenario`` objects so that an
+    invalid scenario is rejected before any data is produced.
+    """
     resolution = resolve_catalog(scenario.items)
     issues: list[ValidationIssue] = list(resolution.issues)
     issues.extend(_validate_geometry(scenario.wafer))

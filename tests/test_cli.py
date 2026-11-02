@@ -1,3 +1,4 @@
+import csv
 import json
 from pathlib import Path
 
@@ -102,3 +103,62 @@ def test_invalid_arguments_exit_one(
 
     assert exc_info.value.code == 1
     assert "usage:" in capsys.readouterr().err
+
+
+def _write_tiny_scenario(tmp_path: Path) -> Path:
+    path = tmp_path / "tiny.yaml"
+    path.write_text(
+        "schema_version: 1\n"
+        "product:\n"
+        "  name: GEN55LOGIC\n"
+        "lots:\n"
+        "  wafers_per_lot: 1\n"
+        "seed: 20260105\n",
+        encoding="utf-8",
+    )
+    return path
+
+
+def test_generate_writes_cp_csv_and_exits_zero(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    scenario_path = _write_tiny_scenario(tmp_path)
+    output_dir = tmp_path / "out"
+
+    exit_code = main(["generate", "-c", str(scenario_path), "-o", str(output_dir)])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert captured.err == ""
+    paths = list(output_dir.glob("*.csv"))
+    assert len(paths) == 1
+    with paths[0].open(encoding="utf-8", newline="") as stream:
+        rows = list(csv.DictReader(stream))
+    assert len(rows) == 2700
+    assert {"lot_id", "wafer_id", "hard_bin", "CP_VTHN"} <= set(rows[0])
+
+
+def test_generate_rejects_invalid_config_before_writing_output(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    scenario_path = tmp_path / "invalid.yaml"
+    scenario_path.write_text(
+        "schema_version: 1\n"
+        "product:\n"
+        "  name: GEN55LOGIC\n"
+        "wafer:\n"
+        "  edge_exclusion_mm: 200\n"
+        "lots:\n"
+        "  wafers_per_lot: 1\n"
+        "seed: 20260105\n",
+        encoding="utf-8",
+    )
+    output_dir = tmp_path / "out"
+
+    exit_code = main(["generate", "-c", str(scenario_path), "-o", str(output_dir)])
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "scenario: INVALID" in captured.err
+    assert "EDGE_EXCLUSION_TOO_LARGE" in captured.err
+    assert not output_dir.exists()

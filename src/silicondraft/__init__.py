@@ -2,7 +2,9 @@
 
 from importlib.metadata import PackageNotFoundError, version
 
-from .errors import ScenarioError, ValidationIssue
+from .api import export, generate
+from .dataset import CPLot, CPWafer, GenerationResult
+from .errors import ExportError, ScenarioError, ValidationIssue
 from .scenario import (
     Scenario,
     ScenarioSummary,
@@ -18,12 +20,18 @@ except PackageNotFoundError:  # pragma: no cover - running from an unpacked tree
     __version__ = "0.0.0"
 
 __all__ = [
+    "CPLot",
+    "CPWafer",
+    "ExportError",
+    "GenerationResult",
     "Scenario",
     "ScenarioError",
     "ScenarioSummary",
     "ValidationIssue",
     "ValidationResult",
     "__version__",
+    "export",
+    "generate",
     "load_scenario",
     "scenario_schema",
     "validate_scenario",
