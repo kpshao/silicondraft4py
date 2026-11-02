@@ -7,6 +7,12 @@ from datetime import datetime
 import numpy as np
 from numpy.typing import NDArray
 
+from .binning import (
+    HARD_BIN_DEFINITIONS,
+    SOFT_BIN_DEFINITIONS,
+    BinCount,
+    bin_pareto,
+)
 from .catalog import CatalogItem
 from .scenario.models import Scenario
 
@@ -26,6 +32,7 @@ class CPWafer:
     grid_y: IntArray
     test_site: IntArray
     hard_bin: IntArray
+    soft_bin: IntArray
     passed: BoolArray
     values: Mapping[str, FloatArray]
 
@@ -44,6 +51,16 @@ class CPWafer:
         """Fraction of passing dies on this wafer, between 0 and 1."""
         return self.pass_count / self.die_count
 
+    @property
+    def hard_bin_pareto(self) -> tuple[BinCount, ...]:
+        """Hard-bin counts on this wafer, most frequent first."""
+        return bin_pareto(self.hard_bin, HARD_BIN_DEFINITIONS)
+
+    @property
+    def soft_bin_pareto(self) -> tuple[BinCount, ...]:
+        """Soft-bin counts on this wafer, most frequent first."""
+        return bin_pareto(self.soft_bin, SOFT_BIN_DEFINITIONS)
+
 
 @dataclass(frozen=True, slots=True)
 class CPLot:
@@ -51,6 +68,24 @@ class CPLot:
 
     lot_id: str
     wafers: tuple[CPWafer, ...]
+
+    @property
+    def die_count(self) -> int:
+        """Number of dies measured in this lot."""
+        return sum(wafer.die_count for wafer in self.wafers)
+
+    @property
+    def pass_count(self) -> int:
+        """Number of dies that passed in this lot."""
+        return sum(wafer.pass_count for wafer in self.wafers)
+
+    @property
+    def yield_fraction(self) -> float:
+        """Fraction of passing dies in this lot, between 0 and 1."""
+        die_count = self.die_count
+        if die_count == 0:  # pragma: no cover - generation always produces dies
+            return 0.0
+        return self.pass_count / die_count
 
 
 @dataclass(frozen=True, slots=True)

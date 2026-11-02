@@ -143,13 +143,14 @@ def test_generate_writes_multiblock_cp_csv_and_exits_zero(
     assert markers == ["[METADATA]", "[TEST_ITEMS]", "[BIN_DEFINITIONS]", "[TEST_DATA]"]
 
     data_start = rows.index(["[TEST_DATA]"])
-    assert rows[data_start + 1][:7] == [
+    assert rows[data_start + 1][:8] == [
         "die_x_mm",
         "die_y_mm",
         "grid_x",
         "grid_y",
         "test_site",
         "hard_bin",
+        "soft_bin",
         "pass",
     ]
     assert "lot_id" not in rows[data_start + 1]
