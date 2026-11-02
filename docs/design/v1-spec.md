@@ -137,7 +137,7 @@ metadata:
 - notch 朝下；坐标原点在 wafer 中心，+X 向右、+Y 向上。
 - 内部几何用 mm；STDF PRR 使用整数 grid index；CSV 同时输出 mm 与 grid。
 - CP 多站点：默认 4 site，按测试顺序分配；可选 site offset；STDF PTR/PRR 填 `SITE_NUM`。
-- WAT 站点：默认 9 点 = 中心 + 0.5R 四个正交方向 + 0.9R 四个对角方向；站点数可配置为 5/9/13/21。
+- WAT 站点：默认 9 点 = 中心 + 0.5R 四个正交方向 + 0.9R 四个对角方向；站点数可配置为 5/9/13/21：5 点仅含中心和 0.5R 四个正交方向，13 点在 9 点基础上增加 0.9R 四个正交方向，21 点再增加 0.7R 八个方向（正交 + 对角）。站点按上述顺序编号，位置以 R 计算，不受 edge exclusion 影响。
 - WAT 在 lot 内按 wafer 生成，时间上早于 CP。
 
 ### 4.3 测试项目录
@@ -480,7 +480,7 @@ metadata:
 - Notch down; origin at wafer centre; +X right, +Y up.
 - Internal geometry in mm; STDF PRR uses integer grid indices; CSV includes both mm and grid.
 - CP multi-site: 4 sites by default, assigned in test order; optional site offsets; STDF PTR/PRR populate `SITE_NUM`.
-- WAT sites: 9 by default = centre + 4 orthogonal at 0.5R + 4 diagonal at 0.9R; configurable to 5/9/13/21.
+- WAT sites: 9 by default = centre + 4 orthogonal at 0.5R + 4 diagonal at 0.9R; configurable to 5/9/13/21: 5 keeps only the centre and the four 0.5R orthogonal sites, 13 adds four orthogonal sites at 0.9R, and 21 adds eight sites at 0.7R (orthogonal + diagonal). Sites are numbered in that order; positions are fractions of R and are independent of edge exclusion.
 - WAT is generated per wafer within the lot and timestamps precede CP.
 
 ### 4.3 Test item catalog

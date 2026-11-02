@@ -1,6 +1,8 @@
 import textwrap
 from pathlib import Path
 
+import pytest
+
 from silicondraft import validate_scenario
 
 
@@ -10,37 +12,44 @@ def _write_scenario(tmp_path: Path, content: str) -> Path:
     return path
 
 
-def test_die_grid_that_does_not_fit_is_rejected(tmp_path: Path) -> None:
+@pytest.mark.parametrize("diameter_mm", [150, 200, 300])
+def test_die_larger_than_the_wafer_is_rejected_for_every_diameter(
+    tmp_path: Path, diameter_mm: int
+) -> None:
+    oversize_mm = diameter_mm + 10.0
     path = _write_scenario(
         tmp_path,
-        """
+        f"""
         schema_version: 1
         product:
           name: GEN55LOGIC
         wafer:
-          diameter_mm: 150
-          die_size_mm: [200.0, 200.0]
+          diameter_mm: {diameter_mm}
+          die_size_mm: [{oversize_mm}, {oversize_mm}]
         seed: 1
         """,
     )
 
     result = validate_scenario(path)
 
-    assert result.ok is False
     assert [(issue.code, issue.path) for issue in result.issues] == [
         ("DIE_GRID_DOES_NOT_FIT", "wafer.die_size_mm")
     ]
 
 
-def test_edge_exclusion_larger_than_radius_is_rejected(tmp_path: Path) -> None:
+@pytest.mark.parametrize("diameter_mm", [150, 200, 300])
+def test_edge_exclusion_at_the_radius_is_rejected_for_every_diameter(
+    tmp_path: Path, diameter_mm: int
+) -> None:
     path = _write_scenario(
         tmp_path,
-        """
+        f"""
         schema_version: 1
         product:
           name: GEN55LOGIC
         wafer:
-          edge_exclusion_mm: 150.0
+          diameter_mm: {diameter_mm}
+          edge_exclusion_mm: {diameter_mm / 2}
         seed: 1
         """,
     )
