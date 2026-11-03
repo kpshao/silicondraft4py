@@ -30,6 +30,7 @@ class ScenarioSummary:
     """Resolved counts for a valid scenario."""
 
     schema_version: int
+    preset: str | None
     product: str
     lots: int
     wafers_per_lot: int
@@ -103,6 +104,7 @@ def validate_scenario_model(scenario: Scenario) -> ValidationResult:
     wafers = scenario.lots.count * scenario.lots.wafers_per_lot
     summary = ScenarioSummary(
         schema_version=scenario.schema_version,
+        preset=scenario.preset,
         product=scenario.product.name,
         lots=scenario.lots.count,
         wafers_per_lot=scenario.lots.wafers_per_lot,

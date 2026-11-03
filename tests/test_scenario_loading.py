@@ -16,6 +16,7 @@ def test_minimal_scenario_loads_with_defaults(tmp_path: Path) -> None:
     scenario = load_scenario(path)
 
     assert scenario.schema_version == 1
+    assert scenario.preset is None
     assert scenario.product.name == "GEN55LOGIC"
     assert scenario.product.test_program == ""
     assert scenario.wafer.diameter_mm == 300

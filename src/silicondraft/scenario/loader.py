@@ -10,6 +10,7 @@ from pydantic import ValidationError
 
 from ..errors import ScenarioError, ValidationIssue
 from .models import Scenario
+from .presets import expand_preset
 
 _ERROR_CODES: dict[str, str] = {
     "missing": "REQUIRED",
@@ -111,7 +112,7 @@ def _raise_scenario_error(
 def parse_scenario(data: object) -> Scenario:
     """Validate a raw scenario document against the v1 structure."""
     try:
-        return Scenario.model_validate(data)
+        return Scenario.model_validate(expand_preset(data))
     except ValidationError as exc:
         raise ScenarioError(issues_from_validation_error(exc)) from exc
 
