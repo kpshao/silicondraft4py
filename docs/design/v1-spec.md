@@ -52,7 +52,7 @@ SiliconDraft 生成可复现的合成半导体测试数据，用于验证良率�
 
 #### 4.1.2 分节
 
-`schema_version`、`product`、`wafer`、`lots`、`items`、`patterns`、`linkage`、`export`、`seed`、`metadata`。
+`schema_version`、`product`、`wafer`、`lots`、`items`、`patterns`、`defects`、`linkage`、`export`、`seed`、`metadata`。
 
 `product.test_program` 为可选字段，表示测试程序名；未填写时回退为 `items.preset`。
 
@@ -107,6 +107,13 @@ patterns:
     target_item: CP_FRO
     amplitude: 0.05
     radius_mm: 40.0
+
+defects:
+  model: clustered
+  failure_rate: 0.01
+  cluster_size: 8
+  cluster_radius_mm: 10.0
+  target_items: [CP_FUNC, CP_SCAN]
 
 linkage:
   overrides:
@@ -165,14 +172,17 @@ metadata:
 V1 模式目录：`center-high`、`center-low`、`edge-high`、`edge-low`、`ring`、`radial-gradient`、`local-spot`。
 
 - 每个模式可指定：作用对象（yield / 指定 item / 两者）、幅度、空间范围（半径或宽度）、作用粒度（lot 或 wafer）、叠加方式。
+- `scope: lot` 作用于 lot 内所有 wafer；`scope: wafer` 在每个 lot 只作用于一张由 seed 确定的 wafer，并记为 outlier wafer。
 - 多个模式可叠加；同一 wafer 上允许同时存在不同模式。
 - 模式作用于 die 级值或 die pass/fail；不得直接改写 bin 码，bin 由规则推导。
+- yield 目标通过让 `CP_FUNC`（缺失时 `CP_SCAN`）失败来降低良率；正幅度的高良率模式不制造失败，而是降低随机缺陷失败概率。item 目标按相对 typical 的比例平移测量值。
 
 #### 4.4.4 随机缺陷
 
-- 默认用负二项/簇聚模型：缺陷密度 + 簇聚参数；可配置为 Poisson。
-- 缺陷导致 `CP_FUNC` / `CP_SCAN` 失败或指定 item 失效；默认 `CP_FUNC`/`CP_SCAN` 总失败率 1%。
-- 缺陷结果进入 ground truth，供 YMS 的簇聚/异常检测验证。
+- `defects` 节配置：`enabled`、`model`（`clustered` / `poisson`）、`failure_rate`、`cluster_size`、`cluster_radius_mm` 与 `target_items`。
+- 默认用簇聚模型：按 `failure_rate × die_count / cluster_size` 放置簇心，用高斯核抬高附近 die 的失败概率并归一化到目标失败率；`poisson` 模型令所有 die 独立同概率失败。正幅度的 yield 模式会按比例降低缺陷失败概率。
+- 缺陷导致 `target_items` 中的 CP 项失效；默认目标是 `CP_FUNC` / `CP_SCAN`，默认 die 级总失败率 1%。
+- 缺陷结果（簇心、成员 die、每 wafer 失败数）进入 ground truth，供 YMS 的簇聚/异常检测验证。
 
 #### 4.4.5 Binning
 
@@ -188,9 +198,9 @@ V1 模式目录：`center-high`、`center-low`、`edge-high`、`edge-low`、`rin
 
 ### 4.5 Ground truth
 
-- JSON 摘要：引擎版本、完整 scenario + SHA-256、seed、生成时间、product、lot/wafer 摘要、每 wafer 良率、latent factor 均值、注入模式清单、目标 vs 实际相关系数、outlier wafer、每 die 真值文件名。
-- 每 die CSV.GZ：`lot_id, wafer_id, die_x_mm, die_y_mm, grid_x, grid_y, test_site, true_pass, true_hard_bin, true_soft_bin, F_VT, F_MOB, F_TOX, F_RC, F_LEAK, F_SC, pattern_ids`。
-- `--no-die-truth` 可关闭每 die 真值输出。
+- JSON manifest：引擎版本、完整 scenario + SHA-256、seed、生成时间、product、lot/wafer 摘要、每 wafer 良率、latent factor 均值、注入模式清单与各自贡献、随机缺陷簇、目标/达成/观测相关系数、outlier wafer、每 die 真值文件名。文件名 `{product}_ground_truth_{timestamp}.json`。
+- 每 die CSV.GZ：`lot_id, wafer_id, die_x_mm, die_y_mm, grid_x, grid_y, test_site, true_pass, true_hard_bin, true_soft_bin, F_VT, F_MOB, F_TOX, F_RC, F_LEAK, F_SC, pattern_ids`；文件名 `{product}_{lot}_die_truth_{timestamp}.csv.gz`。模式 ID 为 `pattern_1`…，同一 die 命中多个模式时以 `|` 分隔。
+- `--no-die-truth` 可关闭每 die 真值输出，manifest 仍写出；`export.ground_truth: false` 关闭整个 ground truth。
 
 ### 4.6 导出
 
@@ -252,7 +262,8 @@ silicondraft version
 | WAT sites | 9（中心 + 0.5R × 4 + 0.9R × 4） |
 | CP sites | 4 |
 | Items | 15 WAT + 21 CP |
-| FUNC/SCAN 失败率 | 1% |
+| 随机缺陷 | 簇聚模型；`failure_rate` 1%，`cluster_size` 8，`cluster_radius_mm` 10 |
+| FUNC/SCAN 失败率 | 1%（所有 `defects.target_items` 合计） |
 | 性能目标 | 单 lot 生成+导出 < 60s；内存 < 2GB |
 
 ## 6. 架构
@@ -395,7 +406,7 @@ Terminology follows [GLOSSARY.md](../../GLOSSARY.md). Core relationships:
 
 #### 4.1.2 Sections
 
-`schema_version`, `product`, `wafer`, `lots`, `items`, `patterns`, `linkage`, `export`, `seed`, `metadata`.
+`schema_version`, `product`, `wafer`, `lots`, `items`, `patterns`, `defects`, `linkage`, `export`, `seed`, `metadata`.
 
 `product.test_program` is optional and names the test program; when omitted it falls back to `items.preset`.
 
@@ -450,6 +461,13 @@ patterns:
     target_item: CP_FRO
     amplitude: 0.05
     radius_mm: 40.0
+
+defects:
+  model: clustered
+  failure_rate: 0.01
+  cluster_size: 8
+  cluster_radius_mm: 10.0
+  target_items: [CP_FUNC, CP_SCAN]
 
 linkage:
   overrides:
@@ -508,14 +526,17 @@ metadata:
 V1 pattern catalog: `center-high`, `center-low`, `edge-high`, `edge-low`, `ring`, `radial-gradient`, `local-spot`.
 
 - Each pattern specifies: target (yield / selected item / both), amplitude, spatial extent (radius or width), scope (lot or wafer), and composition mode.
+- `scope: lot` applies to every wafer in the lot; `scope: wafer` applies to one seed-selected wafer per lot and records it as an outlier wafer.
 - Patterns compose; multiple patterns may coexist on one wafer.
 - Patterns act on die-level values or die pass/fail; they never write bin codes directly—bins are derived by rules.
+- A yield target lowers yield by failing `CP_FUNC` (or `CP_SCAN` when absent); a positive-amplitude high-yield pattern creates no failures and instead reduces the random-defect failure probability. An item target shifts measurements by a fraction of the item's typical value.
 
 #### 4.4.4 Random defects
 
-- Default model is negative-binomial/clustered: defect density + clustering parameter; Poisson is configurable.
-- Defects cause `CP_FUNC` / `CP_SCAN` failures or failures of selected items; default total `CP_FUNC`/`CP_SCAN` failure rate is 1%.
-- Defect results appear in ground truth for validating the YMS's clustering/outlier detection.
+- The `defects` section configures `enabled`, `model` (`clustered` / `poisson`), `failure_rate`, `cluster_size`, `cluster_radius_mm`, and `target_items`.
+- The default clustered model places `failure_rate × die_count / cluster_size` centres, raises nearby die failure probabilities with Gaussian kernels, and normalizes them to the target rate; the Poisson model gives every die the same independent probability. Positive-amplitude yield patterns reduce defect failure probability proportionally.
+- Defects fail items in `target_items`; the default targets are `CP_FUNC` / `CP_SCAN` with a default die-level total failure rate of 1%.
+- Defect results (cluster centres, member dies, per-wafer failure counts) appear in ground truth for validating the YMS's clustering/outlier detection.
 
 #### 4.4.5 Binning
 
@@ -531,9 +552,9 @@ V1 pattern catalog: `center-high`, `center-low`, `edge-high`, `edge-low`, `ring`
 
 ### 4.5 Ground truth
 
-- JSON summary: engine version, full scenario + SHA-256, seed, generation time, product, lot/wafer summary, per-wafer yield, latent-factor means, injected pattern manifest, target vs achieved correlations, outlier wafers, and per-die truth file names.
-- Per-die CSV.GZ: `lot_id, wafer_id, die_x_mm, die_y_mm, grid_x, grid_y, test_site, true_pass, true_hard_bin, true_soft_bin, F_VT, F_MOB, F_TOX, F_RC, F_LEAK, F_SC, pattern_ids`.
-- `--no-die-truth` disables per-die truth output.
+- JSON manifest: engine version, full scenario + SHA-256, seed, generation time, product, lot/wafer summary, per-wafer yield, latent-factor means, injected pattern manifest with each pattern's contribution, random-defect clusters, target/achieved/observed correlations, outlier wafers, and per-die truth file names. File name: `{product}_ground_truth_{timestamp}.json`.
+- Per-die CSV.GZ: `lot_id, wafer_id, die_x_mm, die_y_mm, grid_x, grid_y, test_site, true_pass, true_hard_bin, true_soft_bin, F_VT, F_MOB, F_TOX, F_RC, F_LEAK, F_SC, pattern_ids`; file name `{product}_{lot}_die_truth_{timestamp}.csv.gz`. Pattern IDs are `pattern_1`, ...; multiple hits on one die are separated by `|`.
+- `--no-die-truth` disables per-die truth output while the manifest is still written; `export.ground_truth: false` disables ground truth entirely.
 
 ### 4.6 Export
 
@@ -595,7 +616,8 @@ Common flags: `--seed`, `--output`, `--formats stdf,csv`, `--lang en|zh`, `--log
 | WAT sites | 9 (centre + 4 at 0.5R + 4 at 0.9R) |
 | CP sites | 4 |
 | Items | 15 WAT + 21 CP |
-| FUNC/SCAN failure rate | 1% |
+| Random defects | Clustered model; `failure_rate` 1%, `cluster_size` 8, `cluster_radius_mm` 10 |
+| FUNC/SCAN failure rate | 1% (combined across all `defects.target_items`) |
 | Performance target | < 60 s per lot generation+export; < 2 GB memory |
 
 ## 6. Architecture

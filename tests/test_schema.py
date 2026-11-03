@@ -13,6 +13,7 @@ _SECTIONS = {
     "lots",
     "items",
     "patterns",
+    "defects",
     "linkage",
     "export",
     "seed",
@@ -41,6 +42,16 @@ def test_schema_accepts_a_minimal_scenario() -> None:
     )
 
     Draft202012Validator(scenario_schema()).validate(document)
+
+
+def test_schema_exposes_the_random_defect_settings() -> None:
+    schema = scenario_schema()
+
+    defects = schema["$defs"]["Defects"]
+    assert defects["properties"]["model"]["enum"] == ["clustered", "poisson"]
+    assert defects["properties"]["failure_rate"]["default"] == 0.01
+    assert defects["properties"]["target_items"]["type"] == "array"
+    assert "defects" not in schema["required"]
 
 
 def test_schema_exposes_an_optional_product_test_program() -> None:

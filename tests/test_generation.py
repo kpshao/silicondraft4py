@@ -73,7 +73,14 @@ def _write_scenario(
                 f"      usl: {cp_vthn_usl}",
             ]
         )
-    lines.extend(["export:", "  wat_csv: false"])
+    lines.extend(
+        [
+            "export:",
+            "  wat_csv: false",
+            "  ground_truth: false",
+            "  include_die_truth: false",
+        ]
+    )
     if encoding is not None:
         lines.append(f"  encoding: {encoding}")
     lines.append("seed: 20260105")

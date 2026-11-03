@@ -4,7 +4,16 @@ from importlib.metadata import PackageNotFoundError, version
 
 from .api import export, generate
 from .binning import BinDefinition, BinParetoEntry
-from .dataset import CPLot, CPWafer, GenerationResult, LinkageReportEntry, WatLot, WatWafer
+from .dataset import (
+    CPLot,
+    CPWafer,
+    GenerationResult,
+    LinkageReportEntry,
+    PatternReport,
+    WatLot,
+    WatWafer,
+)
+from .defects import DefectCluster
 from .errors import ExportError, ScenarioError, ValidationIssue
 from .scenario import (
     Scenario,
@@ -25,9 +34,11 @@ __all__ = [
     "BinParetoEntry",
     "CPLot",
     "CPWafer",
+    "DefectCluster",
     "ExportError",
     "GenerationResult",
     "LinkageReportEntry",
+    "PatternReport",
     "Scenario",
     "ScenarioError",
     "ScenarioSummary",

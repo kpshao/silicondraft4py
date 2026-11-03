@@ -1,19 +1,33 @@
 """CP multi-block CSV export: one file per wafer."""
 
 import csv
-import hashlib
-import json
-import re
 from collections.abc import Iterable, Sequence
-from datetime import UTC, datetime
-from importlib.metadata import PackageNotFoundError
-from importlib.metadata import version as package_version
 from pathlib import Path
 from typing import Protocol
 
 from ..binning import HARD_BIN_DEFINITIONS, SOFT_BIN_DEFINITIONS, item_passed
 from ..dataset import CPLot, CPWafer, GenerationResult, WatLot
-from ..scenario.models import Scenario
+from .common import (
+    engine_version as _exec_version,
+)
+from .common import (
+    format_float as _format_float,
+)
+from .common import (
+    format_optional_float as _format_optional_float,
+)
+from .common import (
+    format_timestamp as _format_timestamp,
+)
+from .common import (
+    safe_filename_part as _safe_filename_part,
+)
+from .common import (
+    scenario_sha256 as _scenario_sha256,
+)
+from .common import (
+    timestamp_token as _timestamp_token,
+)
 
 CSV_FORMAT_VERSION = "2"
 TESTER_TYPE = "SIM"
@@ -56,8 +70,6 @@ _WAT_HEADER = (
     "pass",
     "timestamp",
 )
-
-_UNSAFE_FILENAME_CHARS = re.compile(r"[^A-Za-z0-9_.-]+")
 
 
 class _CsvWriter(Protocol):
@@ -265,40 +277,3 @@ def _write_test_data(writer: _CsvWriter, wafer: CPWafer, result: GenerationResul
         for index in range(wafer.die_count)
     )
     _write_block(writer, "[TEST_DATA]", header, rows)
-
-
-def _format_float(value: float) -> str:
-    return format(value, ".10g")
-
-
-def _format_optional_float(value: float | None) -> str:
-    return "" if value is None else _format_float(value)
-
-
-def _format_timestamp(generated_at: datetime) -> str:
-    return generated_at.astimezone(UTC).isoformat()
-
-
-def _timestamp_token(generated_at: datetime) -> str:
-    return generated_at.astimezone(UTC).strftime("%Y%m%dT%H%M%S%fZ")
-
-
-def _scenario_sha256(scenario: Scenario) -> str:
-    canonical = json.dumps(
-        scenario.model_dump(mode="json"),
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-    )
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
-
-
-def _exec_version() -> str:
-    try:
-        return package_version("silicondraft")
-    except PackageNotFoundError:  # pragma: no cover - running from an unpacked tree
-        return "0.0.0"
-
-
-def _safe_filename_part(value: str) -> str:
-    return _UNSAFE_FILENAME_CHARS.sub("_", value).strip("_") or "unnamed"

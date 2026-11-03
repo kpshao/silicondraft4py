@@ -221,3 +221,23 @@ def test_generate_rejects_invalid_config_before_writing_output(
     assert "scenario: INVALID" in captured.err
     assert "EDGE_EXCLUSION_TOO_LARGE" in captured.err
     assert not output_dir.exists()
+
+
+def test_generate_no_die_truth_flag_skips_per_die_truth(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    scenario_path = _write_tiny_scenario(tmp_path)
+    output_dir = tmp_path / "out"
+
+    exit_code = main(
+        ["generate", "-c", str(scenario_path), "-o", str(output_dir), "--no-die-truth"]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert captured.err == ""
+    assert not list(output_dir.glob("*.csv.gz"))
+    manifests = list(output_dir.glob("*_ground_truth_*.json"))
+    assert len(manifests) == 1
+    manifest = json.loads(manifests[0].read_text(encoding="utf-8"))
+    assert manifest["die_truth_files"] == []

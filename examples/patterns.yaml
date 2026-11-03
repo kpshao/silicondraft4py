@@ -1,0 +1,68 @@
+schema_version: 1
+
+product:
+  name: GEN55LOGIC
+  device_family: cmos_logic
+  process_node: "55nm"
+  fab: FAB-A
+  test_program: GEN55LOGIC_CP
+
+wafer:
+  diameter_mm: 300
+  die_size_mm: [5.0, 5.0]
+  edge_exclusion_mm: 3.0
+  cp_sites: 4
+  wat_sites: 9
+
+lots:
+  count: 1
+  wafers_per_lot: 5
+  start_date: "2026-01-05T08:00:00"
+
+items:
+  preset: generic_cmos_logic_55nm
+
+patterns:
+  - kind: edge_low
+    scope: lot
+    target: yield
+    amplitude: 0.35
+    extent_mm: 25.0
+  - kind: center_high
+    scope: lot
+    target_item: CP_FRO
+    amplitude: 0.05
+    radius_mm: 40.0
+  - kind: local_spot
+    scope: wafer
+    target: yield
+    amplitude: -0.90
+    radius_mm: 15.0
+    center_mm: [40.0, -20.0]
+
+defects:
+  model: clustered
+  failure_rate: 0.01
+  cluster_size: 8
+  cluster_radius_mm: 10.0
+  target_items: [CP_FUNC, CP_SCAN]
+
+linkage:
+  overrides:
+    - wat: WAT_VTN
+      cp: CP_VTHN
+      target_r: 0.80
+
+export:
+  cp_stdf: false
+  cp_csv: true
+  wat_csv: true
+  ground_truth: true
+  include_die_truth: true
+  encoding: utf-8
+
+seed: 20260105
+
+metadata:
+  author: ""
+  note: "edge-low yield, centre-high CP_FRO, wafer-scoped spot, and clustered random defects"

@@ -2,6 +2,7 @@
 
 import math
 from collections.abc import Sequence
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from os import PathLike
 from pathlib import Path
@@ -17,11 +18,14 @@ from .dataset import (
     GenerationResult,
     IntArray,
     LinkageReportEntry,
+    PatternReport,
     WatLot,
     WatWafer,
 )
+from .defects import apply_random_defects
 from .errors import ExportError, ScenarioError
 from .exporters import export_cp_csv, export_wat_csv
+from .exporters.groundtruth import export_ground_truth
 from .geometry import layout_dies, layout_wat_sites, nearest_die_indices
 from .latent import (
     FACTORS,
@@ -32,6 +36,7 @@ from .latent import (
     sample_measurements,
     wat_latent,
 )
+from .patterns import apply_pattern, pattern_id, select_yield_failure_item
 from .scenario.models import Lots, Scenario
 from .scenario.validation import validate_scenario_model
 
@@ -40,6 +45,21 @@ _TAG_WAFER_FACTOR = 0x11
 _TAG_DIE_FACTOR = 0x12
 _TAG_CP_NOISE = 0x20
 _TAG_WAT_NOISE = 0x21
+_TAG_PATTERN = 0x30
+_TAG_PATTERN_SCOPE = 0x31
+_TAG_DEFECT = 0x40
+
+
+@dataclass
+class _PatternAccumulator:
+    """Mutable per-pattern totals collected across lots and wafers."""
+
+    affected_die_count: int = 0
+    realized_failures: int = 0
+    item_shift_sum: float = 0.0
+    item_shift_die_count: int = 0
+    recovery_probability_sum: float = 0.0
+    affected_wafers: list[tuple[str, str]] = field(default_factory=list)
 
 
 def generate(scenario: Scenario) -> GenerationResult:
@@ -59,6 +79,11 @@ def generate(scenario: Scenario) -> GenerationResult:
     items = tuple(item for item in enabled_items if item.phase == "CP")
     wat_items = tuple(item for item in enabled_items if item.phase == "WAT")
     latent_model = build_latent_model(resolution.catalog, scenario.linkage)
+    items_by_id = {item.id: item for item in items}
+    yield_failure_item = select_yield_failure_item(enabled_items)
+    defect_targets = tuple(
+        items_by_id[item_id] for item_id in scenario.defects.target_items if item_id in items_by_id
+    )
 
     generated_at = datetime.now(UTC)
     timeline_start = _timeline_start(scenario, generated_at)
@@ -66,11 +91,13 @@ def generate(scenario: Scenario) -> GenerationResult:
     wat_layout = layout_wat_sites(scenario.wafer)
     nearest_dies = nearest_die_indices(wat_layout, layout)
     factor_count = len(FACTORS)
+    pattern_stats = [_PatternAccumulator() for _ in scenario.patterns]
     lots: list[CPLot] = []
     wat_lots: list[WatLot] = []
     for lot_number in range(1, scenario.lots.count + 1):
         lot_id = scenario.lots.lot_id_template.format(product=scenario.product.name, lot=lot_number)
         lot_factors = _rng(scenario.seed, _TAG_LOT_FACTOR, lot_number).standard_normal(factor_count)
+        wafer_scoped_targets = _wafer_scoped_targets(scenario, lot_number)
         wafers: list[CPWafer] = []
         wat_wafers: list[WatWafer] = []
         for wafer_number in range(1, scenario.lots.wafers_per_lot + 1):
@@ -96,6 +123,39 @@ def generate(scenario: Scenario) -> GenerationResult:
                 )
                 for item in items
             }
+            recovery = np.zeros(layout.count, dtype=np.float64)
+            pattern_hits = {}
+            for index, pattern in enumerate(scenario.patterns):
+                if index in wafer_scoped_targets and wafer_scoped_targets[index] != wafer_number:
+                    continue
+                application = apply_pattern(
+                    pattern,
+                    index,
+                    items_by_id,
+                    values,
+                    layout,
+                    scenario.wafer,
+                    yield_failure_item,
+                    _rng(scenario.seed, _TAG_PATTERN, lot_number, wafer_number, index),
+                )
+                pattern_hits[application.pattern_id] = application.hit
+                recovery = 1.0 - (1.0 - recovery) * (1.0 - application.recovery)
+                stats = pattern_stats[index]
+                stats.affected_die_count += int(application.hit.sum())
+                stats.realized_failures += int(application.failure.sum())
+                stats.item_shift_sum += application.item_shift_sum
+                stats.item_shift_die_count += application.item_shift_die_count
+                stats.recovery_probability_sum += float(application.recovery.sum())
+                if pattern.scope == "wafer":
+                    stats.affected_wafers.append((lot_id, wafer_id))
+            defects = apply_random_defects(
+                scenario.defects,
+                defect_targets,
+                values,
+                layout,
+                recovery,
+                _rng(scenario.seed, _TAG_DEFECT, lot_number, wafer_number),
+            )
             bins = classify_bins(items, values, layout.count)
             wafers.append(
                 CPWafer(
@@ -109,6 +169,10 @@ def generate(scenario: Scenario) -> GenerationResult:
                     soft_bin=bins.soft,
                     passed=bins.hard == PASS,
                     values=values,
+                    factors=factors,
+                    pattern_hits=pattern_hits,
+                    defect_failure=defects.failure,
+                    defect_clusters=defects.clusters,
                     tested_at=cp_time,
                 )
             )
@@ -146,6 +210,18 @@ def generate(scenario: Scenario) -> GenerationResult:
         lots=tuple(lots),
         wat_lots=tuple(wat_lots),
         linkage_report=_linkage_report(latent_model, tuple(lots), tuple(wat_lots), nearest_dies),
+        pattern_reports=tuple(
+            PatternReport(
+                pattern_id=pattern_id(index),
+                affected_die_count=stats.affected_die_count,
+                realized_failures=stats.realized_failures,
+                item_shift_sum=stats.item_shift_sum,
+                item_shift_die_count=stats.item_shift_die_count,
+                recovery_probability_sum=stats.recovery_probability_sum,
+                affected_wafers=tuple(stats.affected_wafers),
+            )
+            for index, stats in enumerate(pattern_stats)
+        ),
         generated_at=generated_at,
     )
 
@@ -154,8 +230,15 @@ def export(
     result: GenerationResult,
     out_dir: str | PathLike[str],
     formats: Sequence[str] = ("csv",),
+    *,
+    include_die_truth: bool | None = None,
 ) -> tuple[Path, ...]:
-    """Export a generation result and return the paths written."""
+    """Export a generation result and return the paths written.
+
+    ``include_die_truth`` overrides ``export.include_die_truth`` for this run;
+    the CLI's ``--no-die-truth`` passes ``False``. The manifest itself is still
+    written when ``export.ground_truth`` is enabled.
+    """
     requested = tuple(format_name.lower() for format_name in formats)
     if not requested:
         raise ExportError("no export format requested; supported: csv")
@@ -170,8 +253,15 @@ def export(
             paths.extend(export_cp_csv(result, out))
         if result.scenario.export.wat_csv:
             paths.extend(export_wat_csv(result, out))
+        if result.scenario.export.ground_truth:
+            write_die_truth = (
+                result.scenario.export.include_die_truth
+                if include_die_truth is None
+                else include_die_truth
+            )
+            paths.extend(export_ground_truth(result, out, include_die_truth=write_die_truth))
     except OSError as exc:
-        raise ExportError(f"cannot export CSV to {out_dir}: {exc}") from exc
+        raise ExportError(f"cannot export to {out_dir}: {exc}") from exc
     return tuple(paths)
 
 
@@ -201,6 +291,17 @@ def _timeline(
 
 def _rng(seed: int, *keys: int) -> np.random.Generator:
     return np.random.default_rng(np.random.SeedSequence([seed, *keys]))
+
+
+def _wafer_scoped_targets(scenario: Scenario, lot_number: int) -> dict[int, int]:
+    """Pick the one-based wafer each wafer-scoped pattern applies to in a lot."""
+    targets: dict[int, int] = {}
+    for index, pattern in enumerate(scenario.patterns):
+        if pattern.scope != "wafer":
+            continue
+        rng = _rng(scenario.seed, _TAG_PATTERN_SCOPE, lot_number, index)
+        targets[index] = int(rng.integers(1, scenario.lots.wafers_per_lot + 1))
+    return targets
 
 
 def _linkage_report(

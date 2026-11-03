@@ -829,3 +829,205 @@ def test_removing_an_unknown_item_is_rejected(tmp_path: Path) -> None:
     assert [(issue.code, issue.path) for issue in result.issues] == [
         ("ITEM_REFERENCE_UNKNOWN", "items.overrides[0].id")
     ]
+
+
+def test_unknown_defect_target_is_rejected(tmp_path: Path) -> None:
+    path = _write_scenario(
+        tmp_path,
+        """
+        schema_version: 1
+        product:
+          name: GEN55LOGIC
+        defects:
+          target_items: [CP_NOPE]
+        seed: 1
+        """,
+    )
+
+    result = validate_scenario(path)
+
+    assert [(issue.code, issue.path) for issue in result.issues] == [
+        ("ITEM_REFERENCE_UNKNOWN", "defects.target_items[0]")
+    ]
+
+
+def test_defect_target_must_be_a_cp_item(tmp_path: Path) -> None:
+    path = _write_scenario(
+        tmp_path,
+        """
+        schema_version: 1
+        product:
+          name: GEN55LOGIC
+        defects:
+          target_items: [WAT_VTN]
+        seed: 1
+        """,
+    )
+
+    result = validate_scenario(path)
+
+    assert [(issue.code, issue.path) for issue in result.issues] == [
+        ("ITEM_PHASE_MISMATCH", "defects.target_items[0]")
+    ]
+
+
+def test_disabled_defect_target_is_rejected(tmp_path: Path) -> None:
+    path = _write_scenario(
+        tmp_path,
+        """
+        schema_version: 1
+        product:
+          name: GEN55LOGIC
+        items:
+          overrides:
+            - id: CP_SCAN
+              enabled: false
+        defects:
+          target_items: [CP_SCAN]
+        seed: 1
+        """,
+    )
+
+    result = validate_scenario(path)
+
+    assert [(issue.code, issue.path) for issue in result.issues] == [
+        ("ITEM_DISABLED", "defects.target_items[0]")
+    ]
+
+
+def test_defect_target_without_a_pass_rule_is_rejected(tmp_path: Path) -> None:
+    path = _write_scenario(
+        tmp_path,
+        """
+        schema_version: 1
+        product:
+          name: GEN55LOGIC
+        items:
+          overrides:
+            - id: CP_CUSTOM
+              phase: CP
+              test_num: 2100
+              unit: V
+              typical: 1.0
+              distribution: normal
+        defects:
+          target_items: [CP_CUSTOM]
+        seed: 1
+        """,
+    )
+
+    result = validate_scenario(path)
+
+    assert [(issue.code, issue.path) for issue in result.issues] == [
+        ("DEFECT_TARGET_UNSUPPORTED", "defects.target_items[0]")
+    ]
+
+
+def test_empty_defect_targets_are_rejected(tmp_path: Path) -> None:
+    path = _write_scenario(
+        tmp_path,
+        """
+        schema_version: 1
+        product:
+          name: GEN55LOGIC
+        defects:
+          target_items: []
+        seed: 1
+        """,
+    )
+
+    result = validate_scenario(path)
+
+    assert [(issue.code, issue.path) for issue in result.issues] == [
+        ("DEFECT_TARGET_MISSING", "defects.target_items")
+    ]
+
+
+def test_duplicate_defect_targets_are_rejected(tmp_path: Path) -> None:
+    path = _write_scenario(
+        tmp_path,
+        """
+        schema_version: 1
+        product:
+          name: GEN55LOGIC
+        defects:
+          target_items: [CP_FUNC, CP_FUNC]
+        seed: 1
+        """,
+    )
+
+    result = validate_scenario(path)
+
+    assert [(issue.code, issue.path) for issue in result.issues] == [
+        ("DUPLICATE_DEFECT_TARGET", "defects.target_items[1]")
+    ]
+
+
+def test_disabled_defects_do_not_require_targets(tmp_path: Path) -> None:
+    path = _write_scenario(
+        tmp_path,
+        """
+        schema_version: 1
+        product:
+          name: GEN55LOGIC
+        defects:
+          enabled: false
+          target_items: []
+        seed: 1
+        """,
+    )
+
+    result = validate_scenario(path)
+
+    assert result.ok is True
+
+
+def test_yield_pattern_requires_a_failable_functional_item(tmp_path: Path) -> None:
+    path = _write_scenario(
+        tmp_path,
+        """
+        schema_version: 1
+        product:
+          name: GEN55LOGIC
+        items:
+          overrides:
+            - id: CP_FUNC
+              enabled: false
+            - id: CP_SCAN
+              enabled: false
+        defects:
+          enabled: false
+        patterns:
+          - kind: edge_low
+            target: yield
+            amplitude: 0.08
+            extent_mm: 25.0
+        seed: 1
+        """,
+    )
+
+    result = validate_scenario(path)
+
+    assert [(issue.code, issue.path) for issue in result.issues] == [
+        ("PATTERN_YIELD_TARGET_UNAVAILABLE", "patterns[0].target")
+    ]
+
+
+def test_defect_failure_rate_must_be_a_fraction(tmp_path: Path) -> None:
+    path = _write_scenario(
+        tmp_path,
+        """
+        schema_version: 1
+        product:
+          name: GEN55LOGIC
+        defects:
+          failure_rate: 1.5
+        seed: 1
+        """,
+    )
+
+    result = validate_scenario(path)
+
+    assert [(issue.code, issue.path) for issue in result.issues] == [
+        ("OUT_OF_RANGE", "defects.failure_rate")
+    ]

@@ -133,6 +133,23 @@ class Linkage(_StrictModel):
     overrides: list[LinkageOverride] = Field(default_factory=list)
 
 
+class Defects(_StrictModel):
+    """Random-defect model applied after systematic spatial patterns.
+
+    ``failure_rate`` is the expected fraction of dies carrying a random
+    defect, measured across all ``target_items``. ``cluster_size`` is the
+    expected number of defect failures per spatial cluster and
+    ``cluster_radius_mm`` controls how far a cluster spreads.
+    """
+
+    enabled: bool = True
+    model: Literal["clustered", "poisson"] = "clustered"
+    failure_rate: float = Field(default=0.01, ge=0.0, le=1.0, allow_inf_nan=False)
+    cluster_size: int = Field(default=8, ge=1)
+    cluster_radius_mm: PositiveFloat = 10.0
+    target_items: list[str] = Field(default_factory=lambda: ["CP_FUNC", "CP_SCAN"])
+
+
 class ExportOptions(_StrictModel):
     """Export formats and file layout."""
 
@@ -160,6 +177,7 @@ class Scenario(_StrictModel):
     lots: Lots = Field(default_factory=Lots)
     items: Items = Field(default_factory=Items)
     patterns: list[Pattern] = Field(default_factory=list)
+    defects: Defects = Field(default_factory=Defects)
     linkage: Linkage = Field(default_factory=Linkage)
     export: ExportOptions = Field(default_factory=ExportOptions)
     seed: int = Field(ge=0, le=2**64 - 1)
