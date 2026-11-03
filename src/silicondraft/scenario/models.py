@@ -30,6 +30,7 @@ PatternKind = Literal[
 PatternScope = Literal["lot", "wafer"]
 PatternCombine = Literal["add", "multiply"]
 ExportEncoding = Literal["utf-8", "utf-8-sig"]
+CsvLayout = Literal["blocks", "long", "both"]
 WaferDiameterMm = Literal[150, 200, 300]
 WatSiteCount = Literal[5, 9, 13, 21]
 
@@ -176,6 +177,7 @@ class ExportOptions(_StrictModel):
 
     cp_stdf: bool = True
     cp_csv: bool = True
+    cp_csv_layout: CsvLayout = "long"
     wat_csv: bool = True
     ground_truth: bool = True
     include_die_truth: bool = True

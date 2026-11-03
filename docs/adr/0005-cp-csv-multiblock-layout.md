@@ -22,6 +22,8 @@ CP CSV 目前是单一宽表，缺少文件级元数据、bin 定义与测试项
 
 **后续更新（T05）：** WAT CSV 已实现为每个 lot 一个 flat long CSV（一行 = wafer × site × item），不复用本 ADR 的四块 grammar；issue #1 与 v1-spec 对 WAT long CSV 的列有单独要求。
 
+**后续更新（T19）：** CP CSV 新增每 lot 一个 flat long CSV（`export.cp_csv_layout: long`）并成为默认；`blocks` 保留本 ADR 的四块布局，`both` 同时输出。因此本 ADR 的「不保留无块纯表格式」条款被 [ADR-0010](0010-cp-long-csv-default-and-multi-block-option.md) 部分取代。
+
 <details>
 <summary>English</summary>
 
@@ -48,5 +50,7 @@ The CP CSV is currently a single flat table with no file-level metadata, bin def
 **Update (T04):** soft bins are now implemented; `[BIN_DEFINITIONS]` emits both HARD and SOFT rows under the same schema (SOFT rows map to a hard bin through the `hard_bin` column); `[TEST_DATA]` gains a `soft_bin` column after `hard_bin`; `[METADATA]` gains lot-level `lot_die_count`/`lot_pass_count`/`lot_yield` alongside the per-wafer `die_count`/`pass_count`/`yield`; `csv_format_version` moves from `1` to `2`. The four-block layout is unchanged.
 
 **Update (T05):** WAT CSV is now implemented as one flat long CSV per lot (one row per wafer × site × item) and does not reuse this ADR's four-block grammar; issue #1 and the v1-spec specify the WAT long-CSV columns separately.
+
+**Update (T19):** CP CSV gains a flat long CSV per lot (`export.cp_csv_layout: long`) and becomes the default; `blocks` keeps this ADR's four-block layout, and `both` writes both. This ADR's "no flat-table fallback" clause is therefore partially superseded by [ADR-0010](0010-cp-long-csv-default-and-multi-block-option.md).
 
 </details>

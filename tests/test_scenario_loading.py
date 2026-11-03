@@ -39,6 +39,7 @@ def test_minimal_scenario_loads_with_defaults(tmp_path: Path) -> None:
     assert scenario.linkage.overrides == []
     assert scenario.export.cp_stdf is True
     assert scenario.export.cp_csv is True
+    assert scenario.export.cp_csv_layout == "long"
     assert scenario.export.wat_csv is True
     assert scenario.export.ground_truth is True
     assert scenario.export.include_die_truth is True
@@ -46,6 +47,44 @@ def test_minimal_scenario_loads_with_defaults(tmp_path: Path) -> None:
     assert scenario.seed == 20260105
     assert scenario.metadata.author == ""
     assert scenario.metadata.note == ""
+
+
+@pytest.mark.parametrize("layout", ["blocks", "long", "both"])
+def test_cp_csv_layout_accepts_the_supported_values(tmp_path: Path, layout: str) -> None:
+    path = tmp_path / "scenario.yaml"
+    path.write_text(
+        "schema_version: 1\n"
+        "product:\n"
+        "  name: GEN55LOGIC\n"
+        "export:\n"
+        f"  cp_csv_layout: {layout}\n"
+        "seed: 1\n",
+        encoding="utf-8",
+    )
+
+    scenario = load_scenario(path)
+
+    assert scenario.export.cp_csv_layout == layout
+
+
+def test_invalid_cp_csv_layout_is_rejected(tmp_path: Path) -> None:
+    path = tmp_path / "scenario.yaml"
+    path.write_text(
+        "schema_version: 1\n"
+        "product:\n"
+        "  name: GEN55LOGIC\n"
+        "export:\n"
+        "  cp_csv_layout: wide\n"
+        "seed: 1\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ScenarioError) as exc_info:
+        load_scenario(path)
+
+    assert [(issue.code, issue.path) for issue in exc_info.value.issues] == [
+        ("INVALID_VALUE", "export.cp_csv_layout")
+    ]
 
 
 def test_load_scenario_rejects_semantic_errors(tmp_path: Path) -> None:

@@ -58,6 +58,7 @@ linkage:
 export:
   cp_stdf: true
   cp_csv: true
+  cp_csv_layout: long
   wat_csv: true
   ground_truth: true
   include_die_truth: true

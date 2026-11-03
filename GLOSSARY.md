@@ -122,6 +122,14 @@ _Avoid_：bin（单独使用时有歧义）
 记录给每颗 die 的细粒度失效类别，并映射到一个 hard bin。
 _Avoid_：sub-bin
 
+**Die pass（die 合格）**：
+一颗 die 的最终 pass/fail 分类，由 hard bin 决定；区别于单个测试项的 item pass。
+_Avoid_：result、status
+
+**Item pass（测试项合格）**：
+单次测量是否满足所属 test item 的 spec limits；对 pass/fail（Bernoulli）类 item，零值即使落在限值内也判为 fail。同一颗 die 的多个 item pass 共同决定 die pass。
+_Avoid_：spec pass、limit pass
+
 **Test site（测试站点）**：
 多站点并测时实际测试某颗 die 的探针卡站点编号；一颗 die 只属于一个 site。
 _Avoid_：site（单独使用时有歧义）
@@ -260,6 +268,14 @@ _Avoid_: bin (ambiguous on its own)
 **Soft bin**:
 The detailed failure category recorded for a die and mapped to a hard bin.
 _Avoid_: sub-bin
+
+**Die pass**:
+The final pass/fail classification of a die, determined by its hard bin; distinct from the item pass of an individual test item.
+_Avoid_: result, status
+
+**Item pass**:
+Whether a single measurement satisfies its test item's spec limits; for pass/fail (Bernoulli) items, a zero value is a failure even when within limits. The item passes of a die collectively determine its die pass.
+_Avoid_: spec pass, limit pass
 
 **Test site**:
 The probe-card site index that tested a die in multi-site probing; each die belongs to exactly one site.

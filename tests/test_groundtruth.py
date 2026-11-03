@@ -46,10 +46,11 @@ def _write_scenario(
         "product": {"name": "GEN55LOGIC"},
         "lots": {"wafers_per_lot": wafers_per_lot},
         "patterns": patterns or [],
+        "export": {"cp_csv_layout": "blocks"},
         "seed": seed,
     }
     if export_options is not None:
-        document["export"] = export_options
+        document["export"] = {"cp_csv_layout": "blocks", **export_options}
     path = tmp_path / "scenario.yaml"
     path.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
     return path

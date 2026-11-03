@@ -107,26 +107,28 @@ def test_invalid_arguments_exit_one(
     assert "usage:" in capsys.readouterr().err
 
 
-def _write_tiny_scenario(tmp_path: Path) -> Path:
+def _write_tiny_scenario(tmp_path: Path, *, cp_csv_layout: str | None = None) -> Path:
+    lines = [
+        "schema_version: 1",
+        "product:",
+        "  name: GEN55LOGIC",
+        "lots:",
+        "  wafers_per_lot: 1",
+        "export:",
+        "  wat_csv: false",
+    ]
+    if cp_csv_layout is not None:
+        lines.append(f"  cp_csv_layout: {cp_csv_layout}")
+    lines.append("seed: 20260105")
     path = tmp_path / "tiny.yaml"
-    path.write_text(
-        "schema_version: 1\n"
-        "product:\n"
-        "  name: GEN55LOGIC\n"
-        "lots:\n"
-        "  wafers_per_lot: 1\n"
-        "export:\n"
-        "  wat_csv: false\n"
-        "seed: 20260105\n",
-        encoding="utf-8",
-    )
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return path
 
 
 def test_generate_writes_multiblock_cp_csv_and_exits_zero(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    scenario_path = _write_tiny_scenario(tmp_path)
+    scenario_path = _write_tiny_scenario(tmp_path, cp_csv_layout="blocks")
     output_dir = tmp_path / "out"
 
     exit_code = main(["generate", "-c", str(scenario_path), "-o", str(output_dir)])
@@ -159,6 +161,70 @@ def test_generate_writes_multiblock_cp_csv_and_exits_zero(
     assert "lot_id" not in rows[data_start + 1]
     assert "wafer_id" not in rows[data_start + 1]
     assert len(rows) - (data_start + 2) == 2700
+
+
+def test_generate_writes_long_cp_csv_by_default(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    scenario_path = _write_tiny_scenario(tmp_path)
+    output_dir = tmp_path / "out"
+
+    exit_code = main(["generate", "-c", str(scenario_path), "-o", str(output_dir)])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert captured.err == ""
+    paths = list(output_dir.glob("*.csv"))
+    assert len(paths) == 1
+    assert re.fullmatch(r"GEN55LOGIC_GEN55LOGIC-L001_CP_\d{8}T\d{12}Z\.csv", paths[0].name)
+
+    with paths[0].open(encoding="utf-8", newline="") as stream:
+        rows = list(csv.reader(stream))
+    assert rows[0] == [
+        "lot_id",
+        "wafer_id",
+        "die_x_mm",
+        "die_y_mm",
+        "grid_x",
+        "grid_y",
+        "test_site",
+        "hard_bin",
+        "hard_bin_name",
+        "soft_bin",
+        "soft_bin_name",
+        "die_pass",
+        "test_num",
+        "item_id",
+        "value",
+        "unit",
+        "lsl",
+        "usl",
+        "pass",
+        "timestamp",
+    ]
+    assert len(rows) - 1 == 2700 * 21
+
+
+def test_generate_writes_both_cp_csv_layouts(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    scenario_path = _write_tiny_scenario(tmp_path, cp_csv_layout="both")
+    output_dir = tmp_path / "out"
+
+    exit_code = main(["generate", "-c", str(scenario_path), "-o", str(output_dir)])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert captured.err == ""
+    names = sorted(path.name for path in output_dir.glob("*.csv"))
+    assert len(names) == 2
+    assert any(
+        re.fullmatch(r"GEN55LOGIC_GEN55LOGIC-L001_CP_\d{8}T\d{12}Z\.csv", name) for name in names
+    )
+    assert any(
+        re.fullmatch(r"GEN55LOGIC_GEN55LOGIC-L001_W01_CP_\d{8}T\d{12}Z\.csv", name)
+        for name in names
+    )
 
 
 def test_generate_prints_the_linkage_report(

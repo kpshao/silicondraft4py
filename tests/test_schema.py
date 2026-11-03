@@ -64,6 +64,22 @@ def test_schema_exposes_an_optional_product_test_program() -> None:
     assert "test_program" not in product.get("required", [])
 
 
+def test_schema_exposes_the_cp_csv_layout() -> None:
+    schema = scenario_schema()
+
+    layout = schema["$defs"]["ExportOptions"]["properties"]["cp_csv_layout"]
+    assert layout["enum"] == ["blocks", "long", "both"]
+    assert layout["default"] == "long"
+
+    document: Any = yaml.safe_load(
+        "schema_version: 1\nproduct:\n  name: GEN55LOGIC\nexport:\n  cp_csv_layout: wide\nseed: 1\n"
+    )
+    errors = list(Draft202012Validator(schema).iter_errors(document))
+
+    assert len(errors) == 1
+    assert errors[0].validator == "enum"
+
+
 def test_schema_does_not_expose_split_by_wafer() -> None:
     schema = scenario_schema()
 
