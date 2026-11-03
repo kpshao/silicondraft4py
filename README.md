@@ -4,7 +4,7 @@
 
 SiliconDraft 是一个 scenario（场景）驱动的合成 CP/WAT 测试数据生成器，用于验证良率管理系统（YMS）的数据导入、良率/bin 分析、wafer map、SPC 与相关性分析。V1 覆盖 CP 与 WAT；FT 计划于 V2 支持。
 
-当前处于 V1 开发早期：项目骨架、scenario v1 schema、结构/语义校验与 `validate` / `schema` / `version` CLI 已完成；CP 生成与 CP CSV 导出（`generate`）已接入，包含 21 个 CP 测试项、hard/soft bin、由 spec limits 推导的 pass/fail、lot/wafer/die 良率汇总与 hard/soft bin Pareto，CSV 采用 [ADR-0005](docs/adr/0005-cp-csv-multiblock-layout.md) 的每 wafer 一个文件、四块布局。WAT 生成与 WAT long CSV、六个 latent process factor 的 lot/wafer/die 分解、WAT↔CP 灵敏度联动、目标相关系数校准与生成报告也已接入（见 [ADR-0006](docs/adr/0006-wat-site-pairing-and-correlation-report.md)）。系统性空间模式、带簇聚的随机缺陷与 ground truth（JSON manifest + 每 die CSV.GZ）已接入（见 [ADR-0007](docs/adr/0007-patterns-defects-and-groundtruth.md)）。`quick` / `trend` / `demo` 预设、多 lot 时间线与 CLI 逐 lot 流式生成也已接入（见 [ADR-0008](docs/adr/0008-scenario-presets-and-streaming-generation.md)）；STDF 与 GUI 仍在后续里程碑。
+当前处于 V1 开发早期：项目骨架、scenario v1 schema、结构/语义校验与 `validate` / `schema` / `version` CLI 已完成；CP 生成与 CP CSV 导出（`generate`）已接入，包含 21 个 CP 测试项、hard/soft bin、由 spec limits 推导的 pass/fail、lot/wafer/die 良率汇总与 hard/soft bin Pareto；CP CSV 默认每 lot 一个 long CSV，并保留 [ADR-0005](docs/adr/0005-cp-csv-multiblock-layout.md) 的每 wafer 四块布局（见 [ADR-0010](docs/adr/0010-cp-long-csv-default-and-multi-block-option.md)）。WAT 生成与 WAT long CSV、六个 latent process factor 的 lot/wafer/die 分解、WAT↔CP 灵敏度联动、目标相关系数校准与生成报告也已接入（见 [ADR-0006](docs/adr/0006-wat-site-pairing-and-correlation-report.md)）。系统性空间模式、带簇聚的随机缺陷与 ground truth（JSON manifest + 每 die CSV.GZ）已接入（见 [ADR-0007](docs/adr/0007-patterns-defects-and-groundtruth.md)）。`quick` / `trend` / `demo` 预设、多 lot 时间线与 CLI 逐 lot 流式生成也已接入（见 [ADR-0008](docs/adr/0008-scenario-presets-and-streaming-generation.md)）；STDF 与 GUI 仍在后续里程碑。
 
 ## 安装
 
@@ -27,14 +27,15 @@ uv run silicondraft validate -c examples/tiny.yaml
 uv run silicondraft generate -c examples/tiny.yaml -o out/
 ```
 
-查看输出（四个块 + 2,700 行 die，共 2,769 行）：
+查看输出（long CSV：2,700 颗 die × 21 个 CP 项 = 56,700 行数据 + 表头）：
 
 ```bash
 ls -lh out/
-head -n 30 out/*.csv                # [METADATA] 与 [TEST_ITEMS]
-grep -A13 '^\[BIN_DEFINITIONS\]' out/*.csv
+head -n 5 out/*.csv
 wc -l out/*.csv
 ```
+
+若要查看 [ADR-0005](docs/adr/0005-cp-csv-multiblock-layout.md) 的四块布局，在 scenario 的 `export` 中设置 `cp_csv_layout: blocks` 后重新生成。
 
 同一 scenario + seed 重复生成时数据一致，`generated_at` 与文件名时间戳除外。
 
@@ -64,13 +65,24 @@ seed: 20260105
 uv run silicondraft generate -c scenario.yaml -o out/
 ```
 
-生成只接受通过校验的 scenario。每片 wafer 一个 CSV，文件内依次包含 `[METADATA]`、`[TEST_ITEMS]`、`[BIN_DEFINITIONS]` 与 `[TEST_DATA]` 四个块；`[TEST_DATA]` 每行一颗 die，包含 mm 与 grid 坐标、test site、hard bin、soft bin、pass 以及每个启用的 CP 测试项一列，不再重复 `lot_id`/`wafer_id`。`[BIN_DEFINITIONS]` 同时输出 hard bin 与 soft bin 定义，soft bin 通过 `hard_bin` 列映射到 hard bin。同一 scenario + seed 生成的数据一致（`generated_at` 与文件名时间戳除外）。
+生成只接受通过校验的 scenario。CP CSV 默认每个 lot 一个 long CSV（`{product}_{lot}_CP_{timestamp}.csv`），一行 = wafer × die × item，表头为 `lot_id,wafer_id,die_x_mm,die_y_mm,grid_x,grid_y,test_site,hard_bin,hard_bin_name,soft_bin,soft_bin_name,die_pass,test_num,item_id,value,unit,lsl,usl,pass,timestamp`。`pass` 是该 item 的 item-level pass（Bernoulli 项值非零才通过），`die_pass` 是整颗 die 的 pass/fail（`hard_bin == 1`）；`hard_bin_name`/`soft_bin_name` 给出 bin 名称。设置 `export.cp_csv_layout: blocks` 可改用 [ADR-0005](docs/adr/0005-cp-csv-multiblock-layout.md) 的每 wafer 四块布局，`both` 同时写出两套。同一 scenario + seed 生成的数据一致（`generated_at` 与文件名时间戳除外）。
 
-导出同时支持 CP CSV、WAT CSV 与 ground truth，分别由 `export.cp_csv` / `export.wat_csv` / `export.ground_truth` 控制；前两者遵循 `export.encoding`。`patterns`、`defects` 与 `linkage` 均已接入生成流程；STDF 尚未接入。
+导出同时支持 CP CSV、WAT CSV 与 ground truth，分别由 `export.cp_csv` / `export.wat_csv` / `export.ground_truth` 控制；CP CSV 的布局由 `export.cp_csv_layout`（`long` / `blocks` / `both`，默认 `long`）控制；CSV 遵循 `export.encoding`。`patterns`、`defects` 与 `linkage` 均已接入生成流程；STDF 尚未接入。
 
 #### CP CSV 布局
 
-[ADR-0005](docs/adr/0005-cp-csv-multiblock-layout.md) 规定 CP CSV 每片 wafer 一个文件，文件内依次包含四个块：`[METADATA]`（`key,value` 元数据）、`[TEST_ITEMS]`（测试项与 spec 限值）、`[BIN_DEFINITIONS]`（hard/soft bin 定义）、`[TEST_DATA]`（每 die 测试结果）。文件名为 `{product}_{lot}_{wafer}_CP_{timestamp}.csv`；`[TEST_DATA]` 不重复 `lot_id`/`wafer_id`。`[METADATA]` 还包含 `csv_format_version`、`scenario_sha256`、lot 级 `lot_die_count`/`lot_pass_count`/`lot_yield`、每片 wafer 的 `die_count`/`pass_count`/`yield` 等字段；`test_program` 未在 `product.test_program` 配置时回退为 `items.preset`。`yield` 与 `lot_yield` 为 0–1 分数、保留 6 位小数；die 级结果由 `[TEST_DATA]` 的 `pass` 列给出。`[BIN_DEFINITIONS]` 先输出 HARD 行，再输出 SOFT 行，SOFT 行用 `hard_bin` 列给出到 hard bin 的映射。
+CP CSV 有两种布局，由 [ADR-0010](docs/adr/0010-cp-long-csv-default-and-multi-block-option.md) 与 [ADR-0005](docs/adr/0005-cp-csv-multiblock-layout.md) 规定。
+
+**long（默认）**：每个 lot 一个文件 `{product}_{lot}_CP_{timestamp}.csv`，纯表格，一行 = wafer × die × item。表头固定为：
+
+```text
+lot_id,wafer_id,die_x_mm,die_y_mm,grid_x,grid_y,test_site,hard_bin,hard_bin_name,soft_bin,soft_bin_name,die_pass,test_num,item_id,value,unit,lsl,usl,pass,timestamp
+GEN55LOGIC-L001,W01,0.0,0.0,30,30,1,1,PASS,100,PASS,1,2001,CP_CONT,4.75,ohm,,100,1,2026-01-05T10:00:00+00:00
+```
+
+`timestamp` 是该 wafer 的 CP 测试时间（ISO 8601 UTC），每行重复；`lsl`/`usl` 无界时留空。long CSV 不含文件级元数据、`csv_format_version` 或完整 bin 定义；provenance 由 ground truth manifest 与文件名承载。25 wafer × 21 item 的 lot 约 1.4M 行，超过 Excel 单表上限，面向 pandas/YMS 等程序化消费者。
+
+**blocks**：设置 `export.cp_csv_layout: blocks` 时恢复 [ADR-0005](docs/adr/0005-cp-csv-multiblock-layout.md) 的每 wafer 一个文件、四块布局。文件名为 `{product}_{lot}_{wafer}_CP_{timestamp}.csv`；文件内依次包含 `[METADATA]`（`key,value` 元数据）、`[TEST_ITEMS]`（测试项与 spec 限值）、`[BIN_DEFINITIONS]`（hard/soft bin 定义）、`[TEST_DATA]`（每 die 测试结果）。`[TEST_DATA]` 每行一颗 die，包含 mm 与 grid 坐标、test site、hard bin、soft bin、pass 以及每个启用的 CP 测试项一列，不重复 `lot_id`/`wafer_id`。`[METADATA]` 还包含 `csv_format_version`、`scenario_sha256`、lot 级 `lot_die_count`/`lot_pass_count`/`lot_yield`、每片 wafer 的 `die_count`/`pass_count`/`yield` 等字段；`test_program` 未在 `product.test_program` 配置时回退为 `items.preset`。`yield` 与 `lot_yield` 为 0–1 分数、保留 6 位小数；die 级结果由 `[TEST_DATA]` 的 `pass` 列给出。`[BIN_DEFINITIONS]` 先输出 HARD 行，再输出 SOFT 行，SOFT 行用 `hard_bin` 列给出到 hard bin 的映射。
 
 ```text
 [METADATA]
@@ -248,7 +260,7 @@ MIT，见 [LICENSE](LICENSE)。
 
 SiliconDraft is a scenario-driven synthetic CP/WAT test data generator for validating yield management system (YMS) functions such as data import, yield/bin analysis, wafer maps, SPC, and correlation analysis. V1 covers CP and WAT; FT is planned for V2.
 
-The project is in early V1 development: the project skeleton, scenario v1 schema, structural/semantic validation, and the `validate` / `schema` / `version` CLI are in place, along with CP generation and CP CSV export (`generate`). Generation now covers all 21 CP test items, hard/soft bins, pass/fail derived from spec limits, lot/wafer/die yield summaries, and hard/soft-bin Pareto; CP CSV uses the per-wafer, four-block layout set by [ADR-0005](docs/adr/0005-cp-csv-multiblock-layout.md). WAT generation with a long CSV, the lot/wafer/die decomposition of six latent process factors, WAT↔CP sensitivity linkage, target-correlation calibration, and the generation report are also in place (see [ADR-0006](docs/adr/0006-wat-site-pairing-and-correlation-report.md)). Systematic spatial patterns, clustered random defects, and ground truth (a JSON manifest plus per-die CSV.GZ) are in place too (see [ADR-0007](docs/adr/0007-patterns-defects-and-groundtruth.md)). The `quick` / `trend` / `demo` presets, multi-lot timelines, and the CLI's per-lot streaming generation are also in place (see [ADR-0008](docs/adr/0008-scenario-presets-and-streaming-generation.md)); STDF and the GUI arrive in later milestones.
+The project is in early V1 development: the project skeleton, scenario v1 schema, structural/semantic validation, and the `validate` / `schema` / `version` CLI are in place, along with CP generation and CP CSV export (`generate`). Generation now covers all 21 CP test items, hard/soft bins, pass/fail derived from spec limits, lot/wafer/die yield summaries, and hard/soft-bin Pareto; CP CSV defaults to one long CSV per lot and retains the per-wafer four-block layout from [ADR-0005](docs/adr/0005-cp-csv-multiblock-layout.md) (see [ADR-0010](docs/adr/0010-cp-long-csv-default-and-multi-block-option.md)). WAT generation with a long CSV, the lot/wafer/die decomposition of six latent process factors, WAT↔CP sensitivity linkage, target-correlation calibration, and the generation report are also in place (see [ADR-0006](docs/adr/0006-wat-site-pairing-and-correlation-report.md)). Systematic spatial patterns, clustered random defects, and ground truth (a JSON manifest plus per-die CSV.GZ) are in place too (see [ADR-0007](docs/adr/0007-patterns-defects-and-groundtruth.md)). The `quick` / `trend` / `demo` presets, multi-lot timelines, and the CLI's per-lot streaming generation are also in place (see [ADR-0008](docs/adr/0008-scenario-presets-and-streaming-generation.md)); STDF and the GUI arrive in later milestones.
 
 ## Install
 
@@ -271,14 +283,15 @@ uv run silicondraft validate -c examples/tiny.yaml
 uv run silicondraft generate -c examples/tiny.yaml -o out/
 ```
 
-Inspect the output (four blocks plus 2,700 die rows, 2,769 lines total):
+Inspect the output (long CSV: 2,700 dies × 21 CP items = 56,700 data rows plus the header):
 
 ```bash
 ls -lh out/
-head -n 30 out/*.csv                # [METADATA] and [TEST_ITEMS]
-grep -A13 '^\[BIN_DEFINITIONS\]' out/*.csv
+head -n 5 out/*.csv
 wc -l out/*.csv
 ```
+
+To inspect the four-block layout from [ADR-0005](docs/adr/0005-cp-csv-multiblock-layout.md), set `cp_csv_layout: blocks` in the scenario's `export` section and regenerate.
 
 Repeated generation with the same scenario + seed produces identical data, except for `generated_at` and the timestamp in the file name.
 
@@ -308,13 +321,24 @@ Generate CP data and write CP CSV:
 uv run silicondraft generate -c scenario.yaml -o out/
 ```
 
-Generation only accepts a scenario that passes validation. Each wafer gets its own CSV, containing `[METADATA]`, `[TEST_ITEMS]`, `[BIN_DEFINITIONS]`, and `[TEST_DATA]` in that order; `[TEST_DATA]` has one row per die with mm and grid coordinates, test site, hard bin, soft bin, pass, and one column per enabled CP test item, and no longer repeats `lot_id`/`wafer_id`. `[BIN_DEFINITIONS]` emits both hard- and soft-bin definitions, with soft bins mapping to hard bins through the `hard_bin` column. The same scenario + seed produces identical data (excluding `generated_at` and the timestamp in the file name).
+Generation only accepts a scenario that passes validation. CP CSV defaults to one long CSV per lot (`{product}_{lot}_CP_{timestamp}.csv`), with one row per wafer × die × item and the header `lot_id,wafer_id,die_x_mm,die_y_mm,grid_x,grid_y,test_site,hard_bin,hard_bin_name,soft_bin,soft_bin_name,die_pass,test_num,item_id,value,unit,lsl,usl,pass,timestamp`. `pass` is the item-level pass (Bernoulli items require a non-zero value), `die_pass` is the die-level pass (`hard_bin == 1`), and `hard_bin_name`/`soft_bin_name` give the bin names. Set `export.cp_csv_layout: blocks` for the per-wafer four-block layout from [ADR-0005](docs/adr/0005-cp-csv-multiblock-layout.md), or `both` to write both. The same scenario + seed produces identical data (excluding `generated_at` and the timestamp in the file name).
 
-Export covers CP CSV, WAT CSV, and ground truth, controlled by `export.cp_csv` / `export.wat_csv` / `export.ground_truth`; the first two honour `export.encoding`. `patterns`, `defects`, and `linkage` are all part of generation; STDF is not wired up yet.
+Export covers CP CSV, WAT CSV, and ground truth, controlled by `export.cp_csv` / `export.wat_csv` / `export.ground_truth`; the CP CSV layout is controlled by `export.cp_csv_layout` (`long` / `blocks` / `both`, default `long`); CSV output honours `export.encoding`. `patterns`, `defects`, and `linkage` are all part of generation; STDF is not wired up yet.
 
 #### CP CSV layout
 
-[ADR-0005](docs/adr/0005-cp-csv-multiblock-layout.md) specifies one CP CSV file per wafer, with four blocks in order: `[METADATA]` (`key,value` metadata), `[TEST_ITEMS]` (test items and spec limits), `[BIN_DEFINITIONS]` (hard/soft bin definitions), and `[TEST_DATA]` (per-die test results). The file name is `{product}_{lot}_{wafer}_CP_{timestamp}.csv`; `[TEST_DATA]` does not repeat `lot_id`/`wafer_id`. `[METADATA]` also carries `csv_format_version`, `scenario_sha256`, the lot-level `lot_die_count`/`lot_pass_count`/`lot_yield`, and the per-wafer `die_count`/`pass_count`/`yield`; `test_program` falls back to `items.preset` when `product.test_program` is not configured. `yield` and `lot_yield` are 0–1 fractions with six decimals; the die-level result is the `pass` column in `[TEST_DATA]`. `[BIN_DEFINITIONS]` emits HARD rows first, then SOFT rows, with the `hard_bin` column mapping each soft bin to its hard bin.
+CP CSV has two layouts, defined by [ADR-0010](docs/adr/0010-cp-long-csv-default-and-multi-block-option.md) and [ADR-0005](docs/adr/0005-cp-csv-multiblock-layout.md).
+
+**long (default)**: one file per lot, `{product}_{lot}_CP_{timestamp}.csv`, a pure table with one row per wafer × die × item. The header is fixed:
+
+```text
+lot_id,wafer_id,die_x_mm,die_y_mm,grid_x,grid_y,test_site,hard_bin,hard_bin_name,soft_bin,soft_bin_name,die_pass,test_num,item_id,value,unit,lsl,usl,pass,timestamp
+GEN55LOGIC-L001,W01,0.0,0.0,30,30,1,1,PASS,100,PASS,1,2001,CP_CONT,4.75,ohm,,100,1,2026-01-05T10:00:00+00:00
+```
+
+`timestamp` is the wafer's CP test time (ISO 8601 UTC), repeated on every row; `lsl`/`usl` are empty when unbounded. The long CSV carries no file-level metadata, `csv_format_version`, or full bin definitions; provenance comes from the ground truth manifest and the file name. A 25-wafer × 21-item lot is about 1.4M rows, above Excel's single-sheet limit, so the long CSV targets programmatic consumers such as pandas/YMS.
+
+**blocks**: setting `export.cp_csv_layout: blocks` restores the per-wafer four-block layout from [ADR-0005](docs/adr/0005-cp-csv-multiblock-layout.md). The file name is `{product}_{lot}_{wafer}_CP_{timestamp}.csv`; each file contains `[METADATA]` (`key,value` metadata), `[TEST_ITEMS]` (test items and spec limits), `[BIN_DEFINITIONS]` (hard/soft bin definitions), and `[TEST_DATA]` (per-die test results). `[TEST_DATA]` has one row per die with mm and grid coordinates, test site, hard bin, soft bin, pass, and one column per enabled CP test item, and does not repeat `lot_id`/`wafer_id`. `[METADATA]` also carries `csv_format_version`, `scenario_sha256`, the lot-level `lot_die_count`/`lot_pass_count`/`lot_yield`, and the per-wafer `die_count`/`pass_count`/`yield`; `test_program` falls back to `items.preset` when `product.test_program` is not configured. `yield` and `lot_yield` are 0–1 fractions with six decimals; the die-level result is the `pass` column in `[TEST_DATA]`. `[BIN_DEFINITIONS]` emits HARD rows first, then SOFT rows, with the `hard_bin` column mapping each soft bin to its hard bin.
 
 ```text
 [METADATA]

@@ -24,6 +24,7 @@ def _write_scenario(
         "lots": {"wafers_per_lot": wafers_per_lot},
         "defects": {"enabled": False},
         "export": {
+            "cp_csv_layout": "blocks",
             "wat_csv": False,
             "ground_truth": False,
             "include_die_truth": False,

@@ -76,6 +76,7 @@ def _write_scenario(
     lines.extend(
         [
             "export:",
+            "  cp_csv_layout: blocks",
             "  wat_csv: false",
             "  ground_truth: false",
             "  include_die_truth: false",

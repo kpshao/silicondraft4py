@@ -25,6 +25,7 @@ items:
 export:
   cp_stdf: false
   cp_csv: true
+  cp_csv_layout: long
   wat_csv: false
   ground_truth: false
   include_die_truth: false

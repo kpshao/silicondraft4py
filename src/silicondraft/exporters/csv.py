@@ -57,6 +57,36 @@ _TEST_DATA_PREFIX = (
     "pass",
 )
 
+_CP_LONG_HEADER = (
+    "lot_id",
+    "wafer_id",
+    "die_x_mm",
+    "die_y_mm",
+    "grid_x",
+    "grid_y",
+    "test_site",
+    "hard_bin",
+    "hard_bin_name",
+    "soft_bin",
+    "soft_bin_name",
+    "die_pass",
+    "test_num",
+    "item_id",
+    "value",
+    "unit",
+    "lsl",
+    "usl",
+    "pass",
+    "timestamp",
+)
+
+_HARD_BIN_NAME_BY_NUMBER = {
+    definition.number: definition.name for definition in HARD_BIN_DEFINITIONS
+}
+_SOFT_BIN_NAME_BY_NUMBER = {
+    definition.number: definition.name for definition in SOFT_BIN_DEFINITIONS
+}
+
 _WAT_HEADER = (
     "lot_id",
     "wafer_id",
@@ -75,6 +105,17 @@ _WAT_HEADER = (
 
 
 def export_cp_csv(result: GenerationResult, out_dir: Path) -> tuple[Path, ...]:
+    """Write CP CSV files in the layout selected by ``export.cp_csv_layout``."""
+    layout = result.scenario.export.cp_csv_layout
+    paths: list[Path] = []
+    if layout in ("blocks", "both"):
+        paths.extend(export_cp_csv_blocks(result, out_dir))
+    if layout in ("long", "both"):
+        paths.extend(export_cp_csv_long(result, out_dir))
+    return tuple(paths)
+
+
+def export_cp_csv_blocks(result: GenerationResult, out_dir: Path) -> tuple[Path, ...]:
     """Write one multi-block CP CSV per wafer and return the written paths.
 
     The file name is ``{product}_{lot}_{wafer}_CP_{timestamp}.csv``; the
@@ -94,6 +135,25 @@ def export_cp_csv(result: GenerationResult, out_dir: Path) -> tuple[Path, ...]:
             path = out_dir / f"{product}_{lot_part}_{wafer_part}_CP_{timestamp}.csv"
             _write_wafer(path, lot, wafer, result, scenario_hash, encoding)
             paths.append(path)
+    return tuple(paths)
+
+
+def export_cp_csv_long(result: GenerationResult, out_dir: Path) -> tuple[Path, ...]:
+    """Write one pure long CP CSV per lot and return the written paths.
+
+    The file name is ``{product}_{lot}_CP_{timestamp}.csv``; each row is one
+    wafer x die x item measurement.
+    """
+    out_dir.mkdir(parents=True, exist_ok=True)
+    encoding = result.scenario.export.encoding
+    timestamp = _timestamp_token(result.generated_at)
+    product = _safe_filename_part(result.scenario.product.name)
+    paths: list[Path] = []
+    for lot in result.lots:
+        lot_part = _safe_filename_part(lot.lot_id)
+        path = out_dir / f"{product}_{lot_part}_CP_{timestamp}.csv"
+        _write_cp_long_lot(path, lot, result, encoding)
+        paths.append(path)
     return tuple(paths)
 
 
@@ -146,6 +206,52 @@ def _write_wat_lot(
                             _format_optional_float(item.usl),
                             int(passed[item.id][site_index]),
                             _format_timestamp(wafer.tested_at),
+                        )
+                    )
+
+
+def _write_cp_long_lot(
+    path: Path,
+    lot: CPLot,
+    result: GenerationResult,
+    encoding: str,
+) -> None:
+    with path.open("w", encoding=encoding, newline="") as stream:
+        writer = csv.writer(stream, lineterminator="\n")
+        writer.writerow(_CP_LONG_HEADER)
+        items = result.items
+        for wafer in lot.wafers:
+            timestamp = _format_timestamp(wafer.tested_at)
+            item_passes = {item.id: item_passed(item, wafer.values[item.id]) for item in items}
+            for index in range(wafer.die_count):
+                hard_bin = int(wafer.hard_bin[index])
+                soft_bin = int(wafer.soft_bin[index])
+                die_fields = (
+                    lot.lot_id,
+                    wafer.wafer_id,
+                    _format_float(float(wafer.x_mm[index])),
+                    _format_float(float(wafer.y_mm[index])),
+                    int(wafer.grid_x[index]),
+                    int(wafer.grid_y[index]),
+                    int(wafer.test_site[index]),
+                    hard_bin,
+                    _HARD_BIN_NAME_BY_NUMBER[hard_bin],
+                    soft_bin,
+                    _SOFT_BIN_NAME_BY_NUMBER[soft_bin],
+                    int(wafer.passed[index]),
+                )
+                for item in items:
+                    writer.writerow(
+                        (
+                            *die_fields,
+                            item.test_num,
+                            item.id,
+                            _format_float(float(wafer.values[item.id][index])),
+                            item.unit,
+                            _format_optional_float(item.lsl),
+                            _format_optional_float(item.usl),
+                            int(item_passes[item.id][index]),
+                            timestamp,
                         )
                     )
 
