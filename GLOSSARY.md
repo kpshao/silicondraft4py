@@ -56,6 +56,10 @@ _Avoid_：用 test program 指代 Test item catalog
 一次生成运行的完整、可复现配置：产品、wafer 几何、lot、测试项、空间模式、联动关系、导出选项与随机种子。
 _Avoid_：config file（文件是场景的载体，不是概念本身）
 
+**Scenario preset（场景预设）**：
+一组命名的 scenario 默认片段（`quick`、`trend`、`demo`），在加载时深合并到显式 YAML 之下；标量与映射可被覆盖，列表整体替换。
+_Avoid_：template file、config preset
+
 **Systematic spatial pattern（系统性空间模式）**：
 在 wafer 上呈现确定性、空间连续分布的良率或测试项偏移，如 center-high、edge-low、ring；由生成器主动注入，区别于随机缺陷。
 _Avoid_：defect pattern、缺陷（在指代该类模式时）
@@ -186,6 +190,10 @@ _Avoid_: using "test program" for the Test item catalog
 **Scenario**:
 A complete, reproducible configuration for one generation run: product, wafer geometry, lots, test items, spatial patterns, linkage, export options, and random seed.
 _Avoid_: config file (the file carries the scenario; it is not the concept)
+
+**Scenario preset**:
+A named fragment of scenario defaults (`quick`, `trend`, `demo`) deep-merged under an explicit YAML document at load time; scalars and mappings may be overridden, while lists replace wholesale.
+_Avoid_: template file, config preset
 
 **Systematic spatial pattern**:
 A deterministic, spatially continuous deviation in yield or test-item values across a wafer, such as center-high, edge-low, or ring; deliberately injected and distinct from a random defect.

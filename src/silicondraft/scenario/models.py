@@ -17,6 +17,7 @@ Correlation = Annotated[float, Field(ge=-1.0, le=1.0, allow_inf_nan=False)]
 
 Distribution = Literal["normal", "lognormal", "bernoulli"]
 TestPhase = Literal["CP", "WAT"]
+ScenarioPreset = Literal["quick", "trend", "demo"]
 PatternKind = Literal[
     "center_high",
     "center_low",
@@ -192,6 +193,7 @@ class Scenario(_StrictModel):
     """A complete, reproducible generation scenario (schema version 1)."""
 
     schema_version: Literal[1]
+    preset: ScenarioPreset | None = None
     product: Product
     wafer: Wafer = Field(default_factory=Wafer)
     lots: Lots = Field(default_factory=Lots)

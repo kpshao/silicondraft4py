@@ -7,6 +7,7 @@ import pytest
 
 from silicondraft import __version__
 from silicondraft.cli import main
+from silicondraft.errors import ExportError
 
 
 def _write_valid_scenario(tmp_path: Path) -> Path:
@@ -186,9 +187,9 @@ def test_generate_maps_export_failures_to_exit_three(
     scenario_path = _write_tiny_scenario(tmp_path)
 
     def _fail_export(*args: object, **kwargs: object) -> tuple[Path, ...]:
-        raise RuntimeError("disk is full")
+        raise ExportError("disk is full")
 
-    monkeypatch.setattr("silicondraft.cli.export", _fail_export)
+    monkeypatch.setattr("silicondraft.cli.generate_to_directory", _fail_export)
 
     exit_code = main(["generate", "-c", str(scenario_path), "-o", str(tmp_path / "out")])
 

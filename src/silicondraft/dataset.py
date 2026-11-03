@@ -1,7 +1,7 @@
 """Columnar data produced by the generation engine."""
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 import numpy as np
@@ -15,6 +15,7 @@ from .binning import (
 )
 from .catalog import CatalogItem
 from .defects import DefectCluster
+from .patterns import pattern_id
 from .scenario.models import Scenario
 
 FloatArray = NDArray[np.float64]
@@ -145,6 +146,39 @@ class PatternReport:
     item_shift_die_count: int
     recovery_probability_sum: float
     affected_wafers: tuple[tuple[str, str], ...]
+
+
+@dataclass
+class PatternAccumulator:
+    """Mutable totals merged from one or more pattern reports."""
+
+    affected_die_count: int = 0
+    realized_failures: int = 0
+    item_shift_sum: float = 0.0
+    item_shift_die_count: int = 0
+    recovery_probability_sum: float = 0.0
+    affected_wafers: list[tuple[str, str]] = field(default_factory=list)
+
+    def add(self, report: PatternReport) -> None:
+        """Merge one report into these totals."""
+        self.affected_die_count += report.affected_die_count
+        self.realized_failures += report.realized_failures
+        self.item_shift_sum += report.item_shift_sum
+        self.item_shift_die_count += report.item_shift_die_count
+        self.recovery_probability_sum += report.recovery_probability_sum
+        self.affected_wafers.extend(report.affected_wafers)
+
+    def report(self, index: int) -> PatternReport:
+        """Snapshot these totals as the report for the pattern at ``index``."""
+        return PatternReport(
+            pattern_id=pattern_id(index),
+            affected_die_count=self.affected_die_count,
+            realized_failures=self.realized_failures,
+            item_shift_sum=self.item_shift_sum,
+            item_shift_die_count=self.item_shift_die_count,
+            recovery_probability_sum=self.recovery_probability_sum,
+            affected_wafers=tuple(self.affected_wafers),
+        )
 
 
 @dataclass(frozen=True, slots=True)

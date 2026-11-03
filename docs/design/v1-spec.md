@@ -52,7 +52,7 @@ SiliconDraft 生成可复现的合成半导体测试数据，用于验证良率�
 
 #### 4.1.2 分节
 
-`schema_version`、`product`、`wafer`、`lots`、`items`、`patterns`、`defects`、`linkage`、`export`、`seed`、`metadata`。
+`schema_version`、`preset`、`product`、`wafer`、`lots`、`items`、`patterns`、`defects`、`linkage`、`export`、`seed`、`metadata`。
 
 `product.test_program` 为可选字段，表示测试程序名；未填写时回退为 `items.preset`。
 
@@ -61,6 +61,7 @@ SiliconDraft 生成可复现的合成半导体测试数据，用于验证良率�
 - `quick`：1 lot × 25 wafers，无注入模式，用于快速验证。
 - `trend`：5 lots × 25 wafers，跨日期，用于 lot/wafer 趋势。
 - `demo`：1 lot × 25 wafers，注入多种空间模式与强联动，用于演示与 YMS 检测验证。
+- 顶层 `preset` 字段选择预设；loader 在校验前把预设深合并到显式 YAML 之下（映射深合并、列表整体替换），显式字段覆盖预设。预设提供默认 product 名 `GEN55LOGIC`，但不设置 `seed`。
 
 #### 4.1.4 示例
 
@@ -158,7 +159,7 @@ metadata:
 
 #### 4.4.1 流水线
 
-`scenario 校验 → wafer 布局 → latent factors（lot/wafer/die 三层）→ WAT 站点值 → CP item 值 → 系统性空间模式注入 → 随机缺陷 → binning → ground truth → 预览/导出`。
+`scenario 校验 → wafer 布局 → latent factors（lot/wafer/die 三层）→ WAT 站点值 → CP item 值 → 系统性空间模式注入 → 随机缺陷 → binning → ground truth → 预览/导出`。多 lot 逐个生成并释放：CLI 每写完一个 lot 的 CSV 与真值即丢弃其测量数组，峰值内存按单 lot 增长。
 
 #### 4.4.2 Latent factor 与校准
 
@@ -406,7 +407,7 @@ Terminology follows [GLOSSARY.md](../../GLOSSARY.md). Core relationships:
 
 #### 4.1.2 Sections
 
-`schema_version`, `product`, `wafer`, `lots`, `items`, `patterns`, `defects`, `linkage`, `export`, `seed`, `metadata`.
+`schema_version`, `preset`, `product`, `wafer`, `lots`, `items`, `patterns`, `defects`, `linkage`, `export`, `seed`, `metadata`.
 
 `product.test_program` is optional and names the test program; when omitted it falls back to `items.preset`.
 
@@ -415,6 +416,7 @@ Terminology follows [GLOSSARY.md](../../GLOSSARY.md). Core relationships:
 - `quick`: 1 lot × 25 wafers, no injected patterns, for fast validation.
 - `trend`: 5 lots × 25 wafers across dates, for lot/wafer trends.
 - `demo`: 1 lot × 25 wafers with multiple spatial patterns and strong linkage, for demos and YMS detection validation.
+- The top-level `preset` field selects a preset; before validation the loader deep-merges it under the explicit YAML (mappings merge deeply, lists replace wholesale), with explicit fields overriding the preset. Presets supply the default product name `GEN55LOGIC` but never set `seed`.
 
 #### 4.1.4 Example
 
@@ -512,7 +514,7 @@ metadata:
 
 #### 4.4.1 Pipeline
 
-`scenario validation → wafer layout → latent factors (lot/wafer/die levels) → WAT site values → CP item values → systematic pattern injection → random defects → binning → ground truth → preview/export`.
+`scenario validation → wafer layout → latent factors (lot/wafer/die levels) → WAT site values → CP item values → systematic pattern injection → random defects → binning → ground truth → preview/export`. Multi-lot runs generate and release one lot at a time: the CLI discards a lot's measurement arrays after writing its CSV and truth files, so peak memory follows a single lot.
 
 #### 4.4.2 Latent factors and calibration
 

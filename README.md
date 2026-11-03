@@ -4,7 +4,7 @@
 
 SiliconDraft 是一个 scenario（场景）驱动的合成 CP/WAT 测试数据生成器，用于验证良率管理系统（YMS）的数据导入、良率/bin 分析、wafer map、SPC 与相关性分析。V1 覆盖 CP 与 WAT；FT 计划于 V2 支持。
 
-当前处于 V1 开发早期：项目骨架、scenario v1 schema、结构/语义校验与 `validate` / `schema` / `version` CLI 已完成；CP 生成与 CP CSV 导出（`generate`）已接入，包含 21 个 CP 测试项、hard/soft bin、由 spec limits 推导的 pass/fail、lot/wafer/die 良率汇总与 hard/soft bin Pareto，CSV 采用 [ADR-0005](docs/adr/0005-cp-csv-multiblock-layout.md) 的每 wafer 一个文件、四块布局。WAT 生成与 WAT long CSV、六个 latent process factor 的 lot/wafer/die 分解、WAT↔CP 灵敏度联动、目标相关系数校准与生成报告也已接入（见 [ADR-0006](docs/adr/0006-wat-site-pairing-and-correlation-report.md)）。系统性空间模式、带簇聚的随机缺陷与 ground truth（JSON manifest + 每 die CSV.GZ）已接入（见 [ADR-0007](docs/adr/0007-patterns-defects-and-groundtruth.md)）；STDF 与 GUI 仍在后续里程碑。
+当前处于 V1 开发早期：项目骨架、scenario v1 schema、结构/语义校验与 `validate` / `schema` / `version` CLI 已完成；CP 生成与 CP CSV 导出（`generate`）已接入，包含 21 个 CP 测试项、hard/soft bin、由 spec limits 推导的 pass/fail、lot/wafer/die 良率汇总与 hard/soft bin Pareto，CSV 采用 [ADR-0005](docs/adr/0005-cp-csv-multiblock-layout.md) 的每 wafer 一个文件、四块布局。WAT 生成与 WAT long CSV、六个 latent process factor 的 lot/wafer/die 分解、WAT↔CP 灵敏度联动、目标相关系数校准与生成报告也已接入（见 [ADR-0006](docs/adr/0006-wat-site-pairing-and-correlation-report.md)）。系统性空间模式、带簇聚的随机缺陷与 ground truth（JSON manifest + 每 die CSV.GZ）已接入（见 [ADR-0007](docs/adr/0007-patterns-defects-and-groundtruth.md)）。`quick` / `trend` / `demo` 预设、多 lot 时间线与 CLI 逐 lot 流式生成也已接入（见 [ADR-0008](docs/adr/0008-scenario-presets-and-streaming-generation.md)）；STDF 与 GUI 仍在后续里程碑。
 
 ## 安装
 
@@ -37,6 +37,24 @@ wc -l out/*.csv
 ```
 
 同一 scenario + seed 重复生成时数据一致，`generated_at` 与文件名时间戳除外。
+
+#### 场景预设
+
+scenario 可用顶层 `preset` 选择内置模板；显式字段覆盖模板（映射深合并，列表整体替换）：
+
+```yaml
+schema_version: 1
+preset: demo
+product:
+  name: GEN55LOGIC
+seed: 20260105
+```
+
+- `quick`：1 lot × 25 wafers，无注入模式，用于快速验证。
+- `trend`：5 lots × 25 wafers，跨日期，lot 间隔 168 小时，用于 lot/wafer 趋势。
+- `demo`：1 lot × 25 wafers，注入 edge-low、center-high、ring 与单 wafer local-spot，并带强联动，用于演示与 YMS 检测验证。
+
+预设提供默认 product 名 `GEN55LOGIC`，可在 YAML 中覆盖；`seed` 始终由 scenario 指定。CLI 的 `generate` 逐 lot 生成并写出该 lot 的 CSV/真值后立即释放测量数组，峰值内存按单 lot 而非 lot 数增长。Python API 的 `generate()` 仍返回完整 `GenerationResult`；需要同样流式行为时使用 `generate_to_directory()`。
 
 > **Excel 用户**：默认 `export.encoding: utf-8` 不写 BOM，Excel 双击打开会把 `Ω`、`µA/µm`、`Å` 等单位符号按本地 ANSI 编码解析成乱码。请将 scenario 的 `export.encoding` 设为 `utf-8-sig`（[examples/tiny.yaml](examples/tiny.yaml) 已这样配置），或改用 Excel 的“数据 → 从文本/CSV”并手动选择 UTF-8。
 
@@ -174,7 +192,13 @@ seed: 20260105
 ## Python API
 
 ```python
-from silicondraft import export, generate, load_scenario, validate_scenario
+from silicondraft import (
+    export,
+    generate,
+    generate_to_directory,
+    load_scenario,
+    validate_scenario,
+)
 
 result = validate_scenario("scenario.yaml")
 if not result.ok:
@@ -185,6 +209,9 @@ scenario = load_scenario("scenario.yaml")  # 结构 + 语义校验通过后返�
 generated = generate(scenario)  # 返回 GenerationResult
 paths = export(generated, out_dir="out")  # 按 export 选项写出 CSV 与 ground truth
 paths = export(generated, out_dir="out", include_die_truth=False)  # 覆盖每 die 真值开关
+
+# 或逐 lot 生成并导出，峰值内存按单 lot 增长：
+summary, paths = generate_to_directory(scenario, out_dir="out")
 
 for entry in generated.linkage_report:
     print(entry.wat_item, entry.cp_item, entry.target_r, entry.achieved_r)
@@ -221,7 +248,7 @@ MIT，见 [LICENSE](LICENSE)。
 
 SiliconDraft is a scenario-driven synthetic CP/WAT test data generator for validating yield management system (YMS) functions such as data import, yield/bin analysis, wafer maps, SPC, and correlation analysis. V1 covers CP and WAT; FT is planned for V2.
 
-The project is in early V1 development: the project skeleton, scenario v1 schema, structural/semantic validation, and the `validate` / `schema` / `version` CLI are in place, along with CP generation and CP CSV export (`generate`). Generation now covers all 21 CP test items, hard/soft bins, pass/fail derived from spec limits, lot/wafer/die yield summaries, and hard/soft-bin Pareto; CP CSV uses the per-wafer, four-block layout set by [ADR-0005](docs/adr/0005-cp-csv-multiblock-layout.md). WAT generation with a long CSV, the lot/wafer/die decomposition of six latent process factors, WAT↔CP sensitivity linkage, target-correlation calibration, and the generation report are also in place (see [ADR-0006](docs/adr/0006-wat-site-pairing-and-correlation-report.md)). Systematic spatial patterns, clustered random defects, and ground truth (a JSON manifest plus per-die CSV.GZ) are in place too (see [ADR-0007](docs/adr/0007-patterns-defects-and-groundtruth.md)); STDF and the GUI arrive in later milestones.
+The project is in early V1 development: the project skeleton, scenario v1 schema, structural/semantic validation, and the `validate` / `schema` / `version` CLI are in place, along with CP generation and CP CSV export (`generate`). Generation now covers all 21 CP test items, hard/soft bins, pass/fail derived from spec limits, lot/wafer/die yield summaries, and hard/soft-bin Pareto; CP CSV uses the per-wafer, four-block layout set by [ADR-0005](docs/adr/0005-cp-csv-multiblock-layout.md). WAT generation with a long CSV, the lot/wafer/die decomposition of six latent process factors, WAT↔CP sensitivity linkage, target-correlation calibration, and the generation report are also in place (see [ADR-0006](docs/adr/0006-wat-site-pairing-and-correlation-report.md)). Systematic spatial patterns, clustered random defects, and ground truth (a JSON manifest plus per-die CSV.GZ) are in place too (see [ADR-0007](docs/adr/0007-patterns-defects-and-groundtruth.md)). The `quick` / `trend` / `demo` presets, multi-lot timelines, and the CLI's per-lot streaming generation are also in place (see [ADR-0008](docs/adr/0008-scenario-presets-and-streaming-generation.md)); STDF and the GUI arrive in later milestones.
 
 ## Install
 
@@ -254,6 +281,24 @@ wc -l out/*.csv
 ```
 
 Repeated generation with the same scenario + seed produces identical data, except for `generated_at` and the timestamp in the file name.
+
+#### Scenario presets
+
+A scenario can select a built-in template with the top-level `preset` field; explicit fields override the template (mappings merge deeply, lists replace wholesale):
+
+```yaml
+schema_version: 1
+preset: demo
+product:
+  name: GEN55LOGIC
+seed: 20260105
+```
+
+- `quick`: 1 lot × 25 wafers, no injected patterns, for fast validation.
+- `trend`: 5 lots × 25 wafers across dates with a 168-hour lot interval, for lot/wafer trends.
+- `demo`: 1 lot × 25 wafers with edge-low, center-high, ring, and a wafer-scoped local spot plus strong linkage, for demos and YMS detection validation.
+
+Presets default the product name to `GEN55LOGIC`, which the YAML may override; `seed` always comes from the scenario. The CLI's `generate` writes each lot's CSV and truth files and then releases that lot's measurement arrays, so peak memory follows one lot rather than the lot count. The Python `generate()` API still returns the complete `GenerationResult`; use `generate_to_directory()` for the same streaming behaviour.
 
 > **Excel users**: the default `export.encoding: utf-8` writes no BOM, so opening the CSV by double-clicking makes Excel decode unit symbols such as `Ω`, `µA/µm`, and `Å` with the local ANSI codepage, producing mojibake. Set `export.encoding` to `utf-8-sig` in your scenario ([examples/tiny.yaml](examples/tiny.yaml) already does), or use Excel's Data → From Text/CSV and choose UTF-8 manually.
 
@@ -391,7 +436,13 @@ See the [V1 specification](docs/design/v1-spec.md) and the [domain glossary](GLO
 ## Python API
 
 ```python
-from silicondraft import export, generate, load_scenario, validate_scenario
+from silicondraft import (
+    export,
+    generate,
+    generate_to_directory,
+    load_scenario,
+    validate_scenario,
+)
 
 result = validate_scenario("scenario.yaml")
 if not result.ok:
@@ -404,6 +455,9 @@ scenario = load_scenario(
 generated = generate(scenario)  # returns a GenerationResult
 paths = export(generated, out_dir="out")  # writes CSV and ground truth per export options
 paths = export(generated, out_dir="out", include_die_truth=False)  # override per-die truth
+
+# Or generate and export one lot at a time; peak memory follows a single lot:
+summary, paths = generate_to_directory(scenario, out_dir="out")
 
 for entry in generated.linkage_report:
     print(entry.wat_item, entry.cp_item, entry.target_r, entry.achieved_r)

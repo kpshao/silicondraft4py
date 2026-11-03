@@ -2,7 +2,7 @@
 
 from importlib.metadata import PackageNotFoundError, version
 
-from .api import export, generate
+from .api import StreamingSummary, export, generate, generate_to_directory
 from .binning import BinDefinition, BinParetoEntry
 from .dataset import (
     CPLot,
@@ -42,6 +42,7 @@ __all__ = [
     "Scenario",
     "ScenarioError",
     "ScenarioSummary",
+    "StreamingSummary",
     "ValidationIssue",
     "ValidationResult",
     "WatLot",
@@ -49,6 +50,7 @@ __all__ = [
     "__version__",
     "export",
     "generate",
+    "generate_to_directory",
     "load_scenario",
     "scenario_schema",
     "validate_scenario",

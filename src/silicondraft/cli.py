@@ -10,13 +10,12 @@ from typing import NoReturn
 from . import (
     ValidationIssue,
     __version__,
-    export,
-    generate,
+    generate_to_directory,
     load_scenario,
     scenario_schema,
     validate_scenario,
 )
-from .errors import ScenarioError
+from .errors import ExportError, ScenarioError
 
 
 class _ArgumentParser(argparse.ArgumentParser):
@@ -40,7 +39,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     subparsers = parser.add_subparsers(dest="command", metavar="COMMAND")
 
-    generate_parser = subparsers.add_parser("generate", help="generate data and write CSV")
+    generate_parser = subparsers.add_parser(
+        "generate", help="generate data and write CSV and ground truth"
+    )
     generate_parser.add_argument(
         "-c",
         "--config",
@@ -114,25 +115,25 @@ def _generate(
         return 1
 
     try:
-        result = generate(scenario)
+        summary, paths = generate_to_directory(
+            scenario, output_dir, include_die_truth=include_die_truth
+        )
     except ScenarioError as exc:
         _print_invalid(scenario_path, exc.issues)
         return 1
+    except ExportError as exc:
+        print(f"export failed: {exc}", file=sys.stderr)
+        return 3
     except Exception as exc:
         print(f"generation failed: {exc}", file=sys.stderr)
         return 2
 
-    try:
-        paths = export(result, output_dir, include_die_truth=include_die_truth)
-    except Exception as exc:
-        print(f"export failed: {exc}", file=sys.stderr)
-        return 3
-
-    wafers = sum(len(lot.wafers) for lot in result.lots)
-    dies = sum(wafer.die_count for lot in result.lots for wafer in lot.wafers)
     print(f"scenario: OK ({scenario_path})")
-    print(f"generated: {len(result.lots)} lot(s), {wafers} wafer(s), {dies} die(s)")
-    for entry in result.linkage_report:
+    print(
+        f"generated: {summary.lot_count} lot(s), {summary.wafer_count} wafer(s), "
+        f"{summary.die_count} die(s)"
+    )
+    for entry in summary.linkage_report:
         print(
             f"linkage: {entry.wat_item} -> {entry.cp_item} factor={entry.factor} "
             f"target_r={entry.target_r:.3f} achieved_r={entry.achieved_r:.3f} "
@@ -157,6 +158,8 @@ def _validate(scenario_path: Path) -> int:
     print(f"scenario: OK ({scenario_path})")
     print(f"  product: {summary.product}")
     print(f"  schema_version: {summary.schema_version}")
+    if summary.preset is not None:
+        print(f"  preset: {summary.preset}")
     print(f"  lots: {summary.lots}")
     print(f"  wafers_per_lot: {summary.wafers_per_lot}")
     print(f"  wafers: {summary.wafers}")

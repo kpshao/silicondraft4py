@@ -8,6 +8,7 @@ from silicondraft import scenario_schema
 
 _SECTIONS = {
     "schema_version",
+    "preset",
     "product",
     "wafer",
     "lots",
