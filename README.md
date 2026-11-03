@@ -132,9 +132,9 @@ defects:
   target_items: [CP_FUNC, CP_SCAN]
 ```
 
-yield 模式通过让 `CP_FUNC`（或 `CP_SCAN`）失败来降低良率；正幅度的 `center_high` / `edge_high` 通过降低随机缺陷失败概率体现。item 模式按相对 typical 的比例平移测量值；`ring`、`radial_gradient`、`local_spot` 的幅度可正可负。随机缺陷默认使用簇聚模型，`failure_rate` 是所有 `target_items` 合计的 die 级期望失败率。
+yield 模式通过让 `CP_FUNC`（或 `CP_SCAN`）失败来降低良率；正幅度的 `center_high` / `edge_high` 通过降低随机缺陷失败概率体现。item 模式按相对 typical 的比例平移测量值；`ring`、`radial_gradient`、`local_spot` 的幅度可正可负。随机缺陷默认使用簇聚模型（高斯簇强度场 + 负二项缺陷计数），`failure_rate` 是所有 `target_items` 合计的 die 级期望失败率。
 
-`export.ground_truth` 默认开启：每个 lot 生成一个 JSON manifest（`{product}_ground_truth_{timestamp}.json`），并默认生成一个每 die 真值文件（`{product}_{lot}_die_truth_{timestamp}.csv.gz`）。manifest 包含完整 scenario 与 `scenario_sha256`、seed、每 lot/wafer 良率、latent factor 均值、模式清单与各自贡献、随机缺陷簇、联动目标/达成 r、outlier wafer 以及 die 真值文件名。die 真值包含 `true_pass`、true hard/soft bin、六个 latent factor 与 `pattern_ids`（以 `|` 分隔）。`--no-die-truth` 只关闭每 die 文件，manifest 仍写出；`export.ground_truth: false` 关闭整个 ground truth。
+`export.ground_truth` 默认开启：每次生成运行输出一个 JSON manifest（`{product}_ground_truth_{timestamp}.json`），并为每个 lot 默认生成一个每 die 真值文件（`{product}_{lot}_die_truth_{timestamp}.csv.gz`）。manifest 包含完整 scenario 与 `scenario_sha256`、seed、每 lot/wafer 良率、latent factor 均值、模式清单与各自贡献、随机缺陷簇、联动目标/达成 r、outlier wafer 以及 die 真值文件名。die 真值包含 `true_pass`、true hard/soft bin、六个 latent factor 与 `pattern_ids`（以 `|` 分隔）。`--no-die-truth` 只关闭每 die 文件，manifest 仍写出；`export.ground_truth: false` 关闭整个 ground truth。
 
 示例场景 [examples/patterns.yaml](examples/patterns.yaml) 同时注入 edge-low 良率模式、center-high item 模式、单 wafer local-spot 与默认随机缺陷：
 
@@ -349,9 +349,9 @@ defects:
   target_items: [CP_FUNC, CP_SCAN]
 ```
 
-A yield pattern creates failures by failing `CP_FUNC` (or `CP_SCAN`); positive-amplitude `center_high` / `edge_high` instead reduce the random-defect failure probability. An item pattern shifts that item's measurements by a fraction of its typical value; `ring`, `radial_gradient`, and `local_spot` amplitudes carry their own sign. Random defects use a clustered model by default, and `failure_rate` is the expected die-level failure rate across all `target_items`.
+A yield pattern creates failures by failing `CP_FUNC` (or `CP_SCAN`); positive-amplitude `center_high` / `edge_high` instead reduce the random-defect failure probability. An item pattern shifts that item's measurements by a fraction of its typical value; `ring`, `radial_gradient`, and `local_spot` amplitudes carry their own sign. Random defects use a clustered model by default (a Gaussian cluster-intensity field with negative-binomial defect counts), and `failure_rate` is the expected die-level failure rate across all `target_items`.
 
-`export.ground_truth` is enabled by default: each lot produces a JSON manifest (`{product}_ground_truth_{timestamp}.json`) and, by default, one per-die truth file (`{product}_{lot}_die_truth_{timestamp}.csv.gz`). The manifest carries the full scenario and `scenario_sha256`, seed, per-lot/per-wafer yields, latent-factor means, the pattern manifest with each pattern's contribution, random-defect clusters, target/achieved linkage correlations, outlier wafers, and the die-truth file names. Per-die truth contains `true_pass`, true hard/soft bins, the six latent factors, and `pattern_ids` separated by `|`. `--no-die-truth` suppresses only the per-die file (the manifest is still written); `export.ground_truth: false` disables ground truth entirely.
+`export.ground_truth` is enabled by default: each generation run produces one JSON manifest (`{product}_ground_truth_{timestamp}.json`) plus, by default, one per-die truth file per lot (`{product}_{lot}_die_truth_{timestamp}.csv.gz`). The manifest carries the full scenario and `scenario_sha256`, seed, per-lot/per-wafer yields, latent-factor means, the pattern manifest with each pattern's contribution, random-defect clusters, target/achieved linkage correlations, outlier wafers, and the die-truth file names. Per-die truth contains `true_pass`, true hard/soft bins, the six latent factors, and `pattern_ids` separated by `|`. `--no-die-truth` suppresses only the per-die file (the manifest is still written); `export.ground_truth: false` disables ground truth entirely.
 
 [examples/patterns.yaml](examples/patterns.yaml) combines an edge-low yield pattern, a center-high item pattern, a wafer-scoped local spot, and the default random defects:
 

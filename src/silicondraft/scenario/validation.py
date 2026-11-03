@@ -10,6 +10,9 @@ from ..geometry import count_dies
 from ..latent import DEFAULT_LINKAGE_ITEM_IDS, LINKABLE_DISTRIBUTIONS, WAT_FACTOR
 from .loader import parse_scenario, read_scenario_data
 from .models import (
+    PATTERN_REQUIRED_EXTENTS,
+    PATTERN_SIGNED_AMPLITUDE_KINDS,
+    YIELD_FAILURE_ITEM_IDS,
     Defects,
     ExportOptions,
     Items,
@@ -20,17 +23,6 @@ from .models import (
     TestPhase,
     Wafer,
 )
-
-_REQUIRED_PATTERN_EXTENTS: dict[str, tuple[str, ...]] = {
-    "center_high": ("radius_mm",),
-    "center_low": ("radius_mm",),
-    "edge_high": ("extent_mm",),
-    "edge_low": ("extent_mm",),
-    "ring": ("radius_mm", "width_mm"),
-    "radial_gradient": (),
-    "local_spot": ("radius_mm",),
-}
-_SIGNED_AMPLITUDE_KINDS = frozenset({"ring", "radial_gradient", "local_spot"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -235,7 +227,7 @@ def _validate_patterns(patterns: list[Pattern], catalog: Catalog) -> list[Valida
             issues.extend(
                 _validate_item_reference(pattern.target_item, f"{path}.target_item", "CP", catalog)
             )
-        for field_name in _REQUIRED_PATTERN_EXTENTS[pattern.kind]:
+        for field_name in PATTERN_REQUIRED_EXTENTS[pattern.kind]:
             if getattr(pattern, field_name) is None:
                 issues.append(
                     ValidationIssue(
@@ -262,7 +254,7 @@ def _has_yield_failure_item(catalog: Catalog) -> bool:
     return any(
         can_fail(item)
         for item in catalog.enabled_items
-        if item.phase == "CP" and item.id in ("CP_FUNC", "CP_SCAN")
+        if item.phase == "CP" and item.id in YIELD_FAILURE_ITEM_IDS
     )
 
 
@@ -447,7 +439,7 @@ def _validate_item_overrides_linkage(items: Items) -> list[ValidationIssue]:
 
 
 def _validate_pattern_amplitude(pattern: Pattern, path: str) -> list[ValidationIssue]:
-    if pattern.kind in _SIGNED_AMPLITUDE_KINDS:
+    if pattern.kind in PATTERN_SIGNED_AMPLITUDE_KINDS:
         if pattern.amplitude == 0:
             return [
                 ValidationIssue(

@@ -3,10 +3,12 @@
 import csv
 from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import Protocol
 
 from ..binning import HARD_BIN_DEFINITIONS, SOFT_BIN_DEFINITIONS, item_passed
 from ..dataset import CPLot, CPWafer, GenerationResult, WatLot
+from .common import (
+    CsvWriter,
+)
 from .common import (
     engine_version as _exec_version,
 )
@@ -70,12 +72,6 @@ _WAT_HEADER = (
     "pass",
     "timestamp",
 )
-
-
-class _CsvWriter(Protocol):
-    """The subset of ``csv.writer`` used by this module."""
-
-    def writerow(self, row: Sequence[object]) -> object: ...
 
 
 def export_cp_csv(result: GenerationResult, out_dir: Path) -> tuple[Path, ...]:
@@ -171,7 +167,7 @@ def _write_wafer(
 
 
 def _write_block(
-    writer: _CsvWriter,
+    writer: CsvWriter,
     marker: str,
     header: Sequence[object],
     rows: Iterable[Sequence[object]],
@@ -183,7 +179,7 @@ def _write_block(
 
 
 def _write_metadata(
-    writer: _CsvWriter,
+    writer: CsvWriter,
     lot: CPLot,
     wafer: CPWafer,
     result: GenerationResult,
@@ -224,7 +220,7 @@ def _write_metadata(
     _write_block(writer, "[METADATA]", _METADATA_HEADER, rows)
 
 
-def _write_test_items(writer: _CsvWriter, result: GenerationResult) -> None:
+def _write_test_items(writer: CsvWriter, result: GenerationResult) -> None:
     rows = (
         (
             item.test_num,
@@ -240,7 +236,7 @@ def _write_test_items(writer: _CsvWriter, result: GenerationResult) -> None:
     _write_block(writer, "[TEST_ITEMS]", _TEST_ITEM_HEADER, rows)
 
 
-def _write_bin_definitions(writer: _CsvWriter) -> None:
+def _write_bin_definitions(writer: CsvWriter) -> None:
     rows = [
         (
             bin_type,
@@ -259,7 +255,7 @@ def _write_bin_definitions(writer: _CsvWriter) -> None:
     _write_block(writer, "[BIN_DEFINITIONS]", _BIN_DEFINITION_HEADER, rows)
 
 
-def _write_test_data(writer: _CsvWriter, wafer: CPWafer, result: GenerationResult) -> None:
+def _write_test_data(writer: CsvWriter, wafer: CPWafer, result: GenerationResult) -> None:
     header = (*_TEST_DATA_PREFIX, *(item.id for item in result.items))
     item_columns = [wafer.values[item.id] for item in result.items]
     rows = (

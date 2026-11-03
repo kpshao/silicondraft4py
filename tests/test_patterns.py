@@ -178,3 +178,33 @@ def test_multiply_combine_scales_the_targeted_item(tmp_path: Path) -> None:
     outer = wafer.values["CP_FRO"][radius >= 60.0].mean()
 
     assert center > outer * 1.05
+
+
+def test_both_targets_do_not_double_apply_the_yield_item(tmp_path: Path) -> None:
+    yield_only = _generate(
+        tmp_path,
+        patterns=[
+            {
+                "kind": "center_low",
+                "target": "yield",
+                "amplitude": 0.5,
+                "radius_mm": 300.0,
+            }
+        ],
+    )
+    both = _generate(
+        tmp_path,
+        patterns=[
+            {
+                "kind": "center_low",
+                "target": "yield",
+                "target_item": "CP_FUNC",
+                "amplitude": 0.5,
+                "radius_mm": 300.0,
+            }
+        ],
+    )
+
+    np.testing.assert_array_equal(
+        yield_only.lots[0].wafers[0].passed, both.lots[0].wafers[0].passed
+    )

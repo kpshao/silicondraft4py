@@ -180,7 +180,7 @@ V1 模式目录：`center-high`、`center-low`、`edge-high`、`edge-low`、`rin
 #### 4.4.4 随机缺陷
 
 - `defects` 节配置：`enabled`、`model`（`clustered` / `poisson`）、`failure_rate`、`cluster_size`、`cluster_radius_mm` 与 `target_items`。
-- 默认用簇聚模型：按 `failure_rate × die_count / cluster_size` 放置簇心，用高斯核抬高附近 die 的失败概率并归一化到目标失败率；`poisson` 模型令所有 die 独立同概率失败。正幅度的 yield 模式会按比例降低缺陷失败概率。
+- 默认用簇聚模型：按 `failure_rate × die_count / cluster_size` 放置簇心，用高斯核抬高附近 die 的失败概率并归一化到目标失败率；`poisson` 模型令所有 die 独立同概率失败。正幅度的 yield 模式会按比例降低缺陷失败概率。V1 的簇聚模型把高斯簇强度场与负二项缺陷计数结合：每个 die 的缺陷数服从负二项分布，至少一个缺陷即失败。
 - 缺陷导致 `target_items` 中的 CP 项失效；默认目标是 `CP_FUNC` / `CP_SCAN`，默认 die 级总失败率 1%。
 - 缺陷结果（簇心、成员 die、每 wafer 失败数）进入 ground truth，供 YMS 的簇聚/异常检测验证。
 
@@ -534,7 +534,7 @@ V1 pattern catalog: `center-high`, `center-low`, `edge-high`, `edge-low`, `ring`
 #### 4.4.4 Random defects
 
 - The `defects` section configures `enabled`, `model` (`clustered` / `poisson`), `failure_rate`, `cluster_size`, `cluster_radius_mm`, and `target_items`.
-- The default clustered model places `failure_rate × die_count / cluster_size` centres, raises nearby die failure probabilities with Gaussian kernels, and normalizes them to the target rate; the Poisson model gives every die the same independent probability. Positive-amplitude yield patterns reduce defect failure probability proportionally.
+- The default clustered model places `failure_rate × die_count / cluster_size` centres, raises nearby die failure probabilities with Gaussian kernels, and normalizes them to the target rate; the Poisson model gives every die the same independent probability. Positive-amplitude yield patterns reduce defect failure probability proportionally. V1's clustered model combines a Gaussian cluster-intensity field with negative-binomial defect counts: each die's defect count is negative-binomial and a die fails on at least one defect.
 - Defects fail items in `target_items`; the default targets are `CP_FUNC` / `CP_SCAN` with a default die-level total failure rate of 1%.
 - Defect results (cluster centres, member dies, per-wafer failure counts) appear in ground truth for validating the YMS's clustering/outlier detection.
 

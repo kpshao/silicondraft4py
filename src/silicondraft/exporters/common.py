@@ -3,13 +3,21 @@
 import hashlib
 import json
 import re
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as package_version
+from typing import Protocol
 
 from ..scenario.models import Scenario
 
 _UNSAFE_FILENAME_CHARS = re.compile(r"[^A-Za-z0-9_.-]+")
+
+
+class CsvWriter(Protocol):
+    """The subset of ``csv.writer`` used by the exporters."""
+
+    def writerow(self, row: Sequence[object]) -> object: ...
 
 
 def format_float(value: float) -> str:

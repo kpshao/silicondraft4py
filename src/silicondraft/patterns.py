@@ -24,19 +24,24 @@ from numpy.typing import NDArray
 
 from .catalog import CatalogItem, can_fail
 from .geometry import DieLayout
-from .scenario.models import Pattern, Wafer
+from .scenario.models import (
+    PATTERN_NEGATIVE_AMPLITUDE_KINDS,
+    YIELD_FAILURE_ITEM_IDS,
+    Pattern,
+    Wafer,
+)
 
 FloatArray = NDArray[np.float64]
 BoolArray = NDArray[np.bool_]
 
-YIELD_FAILURE_ITEM_IDS: tuple[str, ...] = ("CP_FUNC", "CP_SCAN")
-
-_LOW_KINDS = frozenset({"center_low", "edge_low"})
-
 
 @dataclass(frozen=True, slots=True)
 class PatternApplication:
-    """The effect of one pattern on one wafer."""
+    """The effect of one pattern on one wafer.
+
+    ``hit`` marks dies inside the pattern's spatial extent (nonzero weight);
+    ``failure`` marks the dies this pattern actually forced to fail.
+    """
 
     pattern_id: str
     hit: BoolArray
@@ -63,7 +68,7 @@ def select_yield_failure_item(items: Iterable[CatalogItem]) -> CatalogItem | Non
 
 def signed_amplitude(pattern: Pattern) -> float:
     """Return the pattern amplitude with the direction encoded by its kind."""
-    if pattern.kind in _LOW_KINDS:
+    if pattern.kind in PATTERN_NEGATIVE_AMPLITUDE_KINDS:
         return -pattern.amplitude
     return pattern.amplitude
 
@@ -136,14 +141,20 @@ def apply_pattern(
     if pattern.target_item is not None:
         item = items[pattern.target_item]
         column = values[item.id]
-        if item.distribution == "bernoulli":
-            draws = rng.random(layout.count) < np.clip(-delta, 0.0, 1.0)
-            column[draws] = 0.0
-            failure |= draws
-        else:
-            _shift_item(item, column, delta, pattern.combine)
-            shift_sum = float(np.abs(delta[hit]).sum())
-            shift_die_count = int(hit.sum())
+        same_as_yield_item = (
+            pattern.target == "yield"
+            and yield_failure_item is not None
+            and item.id == yield_failure_item.id
+        )
+        if not same_as_yield_item:
+            if item.distribution == "bernoulli":
+                draws = rng.random(layout.count) < np.clip(-delta, 0.0, 1.0)
+                column[draws] = 0.0
+                failure |= draws
+            else:
+                _shift_item(item, column, delta, pattern.combine)
+                shift_sum = float(np.abs(delta[hit]).sum())
+                shift_die_count = int(hit.sum())
 
     return PatternApplication(
         pattern_id=pattern_id(index),

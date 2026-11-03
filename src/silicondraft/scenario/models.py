@@ -32,6 +32,25 @@ ExportEncoding = Literal["utf-8", "utf-8-sig"]
 WaferDiameterMm = Literal[150, 200, 300]
 WatSiteCount = Literal[5, 9, 13, 21]
 
+#: Extent fields each pattern kind requires; the JSON Schema cannot express this.
+PATTERN_REQUIRED_EXTENTS: dict[str, tuple[str, ...]] = {
+    "center_high": ("radius_mm",),
+    "center_low": ("radius_mm",),
+    "edge_high": ("extent_mm",),
+    "edge_low": ("extent_mm",),
+    "ring": ("radius_mm", "width_mm"),
+    "radial_gradient": (),
+    "local_spot": ("radius_mm",),
+}
+#: Kinds whose amplitude may carry its own sign.
+PATTERN_SIGNED_AMPLITUDE_KINDS: frozenset[str] = frozenset(
+    {"ring", "radial_gradient", "local_spot"}
+)
+#: Kinds whose positive amplitude lowers the target instead of raising it.
+PATTERN_NEGATIVE_AMPLITUDE_KINDS: frozenset[str] = frozenset({"center_low", "edge_low"})
+#: CP items that random defects fail by default and yield patterns fail on demand.
+YIELD_FAILURE_ITEM_IDS: tuple[str, ...] = ("CP_FUNC", "CP_SCAN")
+
 
 class _StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -137,9 +156,10 @@ class Defects(_StrictModel):
     """Random-defect model applied after systematic spatial patterns.
 
     ``failure_rate`` is the expected fraction of dies carrying a random
-    defect, measured across all ``target_items``. ``cluster_size`` is the
-    expected number of defect failures per spatial cluster and
-    ``cluster_radius_mm`` controls how far a cluster spreads.
+    defect, measured across all ``target_items``. ``cluster_size`` sets both
+    the expected number of defect failures per spatial cluster and the
+    negative-binomial dispersion, and ``cluster_radius_mm`` controls how far a
+    cluster spreads.
     """
 
     enabled: bool = True
@@ -147,7 +167,7 @@ class Defects(_StrictModel):
     failure_rate: float = Field(default=0.01, ge=0.0, le=1.0, allow_inf_nan=False)
     cluster_size: int = Field(default=8, ge=1)
     cluster_radius_mm: PositiveFloat = 10.0
-    target_items: list[str] = Field(default_factory=lambda: ["CP_FUNC", "CP_SCAN"])
+    target_items: list[str] = Field(default_factory=lambda: list(YIELD_FAILURE_ITEM_IDS))
 
 
 class ExportOptions(_StrictModel):

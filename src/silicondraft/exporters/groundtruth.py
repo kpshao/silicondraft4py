@@ -12,9 +12,9 @@ import csv
 import gzip
 import io
 import json
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
@@ -23,6 +23,7 @@ from ..dataset import CPLot, CPWafer, GenerationResult, PatternReport
 from ..latent import FACTORS
 from ..scenario.models import Pattern
 from .common import (
+    CsvWriter,
     engine_version,
     format_float,
     format_timestamp,
@@ -32,13 +33,6 @@ from .common import (
 )
 
 MANIFEST_VERSION = 1
-
-
-class _CsvWriter(Protocol):
-    """The subset of ``csv.writer`` used by this module."""
-
-    def writerow(self, row: Sequence[object]) -> object: ...
-
 
 _DIE_TRUTH_HEADER: tuple[str, ...] = (
     "lot_id",
@@ -121,7 +115,7 @@ def build_manifest(result: GenerationResult, die_truth_files: Mapping[str, str])
                 "lot_id": lot.lot_id,
                 "die_count": lot.die_count,
                 "pass_count": lot.pass_count,
-                "yield": _fraction(lot.yield_fraction),
+                "yield": _rounded_fraction(lot.yield_fraction),
                 "latent_factor_means": latent_means,
                 "die_truth_file": die_truth_files.get(lot.lot_id),
                 "wafers": wafer_entries,
@@ -138,7 +132,7 @@ def build_manifest(result: GenerationResult, die_truth_files: Mapping[str, str])
             "lot_id": lot_id,
             "wafer_id": wafer_id,
             "patterns": outlier_patterns[(lot_id, wafer_id)],
-            "yield": _fraction(wafer_lookup[(lot_id, wafer_id)].yield_fraction),
+            "yield": _rounded_fraction(wafer_lookup[(lot_id, wafer_id)].yield_fraction),
         }
         for lot_id, wafer_id in sorted(outlier_patterns)
     ]
@@ -157,7 +151,7 @@ def build_manifest(result: GenerationResult, die_truth_files: Mapping[str, str])
             "wafer_count": sum(len(lot.wafers) for lot in result.lots),
             "die_count": total_dies,
             "pass_count": total_pass,
-            "yield": _fraction(total_pass / total_dies) if total_dies else 0.0,
+            "yield": _rounded_fraction(total_pass / total_dies) if total_dies else 0.0,
         },
         "lots": lots,
         "patterns": patterns,
@@ -197,7 +191,7 @@ def _wafer_entry(wafer: CPWafer, *, is_outlier: bool) -> dict[str, Any]:
         "wafer_id": wafer.wafer_id,
         "die_count": wafer.die_count,
         "pass_count": wafer.pass_count,
-        "yield": _fraction(wafer.yield_fraction),
+        "yield": _rounded_fraction(wafer.yield_fraction),
         "outlier": is_outlier,
         "defects": {
             "failure_count": failure_count,
@@ -271,7 +265,8 @@ def _die_coordinates(wafer: CPWafer, indices: NDArray[np.int64]) -> list[list[in
     return [[int(wafer.grid_x[index]), int(wafer.grid_y[index])] for index in indices]
 
 
-def _fraction(value: float) -> float:
+def _rounded_fraction(value: float) -> float:
+    """Round a yield fraction to the six decimals used by CSV metadata."""
     return float(f"{value:.6f}")
 
 
@@ -287,7 +282,7 @@ def _write_die_truth(path: Path, lot: CPLot) -> None:
             _write_wafer_truth(writer, lot, wafer)
 
 
-def _write_wafer_truth(writer: _CsvWriter, lot: CPLot, wafer: CPWafer) -> None:
+def _write_wafer_truth(writer: CsvWriter, lot: CPLot, wafer: CPWafer) -> None:
     pattern_ids = list(wafer.pattern_hits)
     masks = [wafer.pattern_hits[pattern_id] for pattern_id in pattern_ids]
     for index in range(wafer.die_count):
