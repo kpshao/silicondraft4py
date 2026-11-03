@@ -56,7 +56,7 @@ seed: 20260105
 
 预设提供默认 product 名 `GEN55LOGIC`，可在 YAML 中覆盖；`seed` 始终由 scenario 指定。CLI 的 `generate` 逐 lot 生成并写出该 lot 的 CSV/真值后立即释放测量数组，峰值内存按单 lot 而非 lot 数增长。Python API 的 `generate()` 仍返回完整 `GenerationResult`；需要同样流式行为时使用 `generate_to_directory()`。
 
-> **Excel 用户**：默认 `export.encoding: utf-8` 不写 BOM，Excel 双击打开会把 `Ω`、`µA/µm`、`Å` 等单位符号按本地 ANSI 编码解析成乱码。请将 scenario 的 `export.encoding` 设为 `utf-8-sig`（[examples/tiny.yaml](examples/tiny.yaml) 已这样配置），或改用 Excel 的“数据 → 从文本/CSV”并手动选择 UTF-8。
+> **Excel 用户**：`unit` 列使用 ASCII SI 记法（`uA`、`ohm`、`angstrom` 等），默认 `export.encoding: utf-8` 双击打开也不会乱码。若产品名、描述等元数据包含中文等非 ASCII 内容，请将 scenario 的 `export.encoding` 设为 `utf-8-sig`（[examples/tiny.yaml](examples/tiny.yaml) 已这样配置），或改用 Excel 的“数据 → 从文本/CSV”并手动选择 UTF-8。
 
 生成 CP 数据并写入 CP CSV：
 
@@ -93,7 +93,7 @@ die_x_mm,die_y_mm,grid_x,grid_y,test_site,hard_bin,soft_bin,pass,CP_CONT,...
 ...
 ```
 
-每个块以独占一行的 `[SECTION]` 标记开头，块间没有空行。编码遵循 `export.encoding`：默认 `utf-8`（无 BOM）；用 Excel 直接打开时设为 `utf-8-sig`，否则非 ASCII 单位符号会乱码。同一 scenario + seed 的数据仍一致，但 `generated_at` 与文件名时间戳会不同，比较时忽略这两项。
+每个块以独占一行的 `[SECTION]` 标记开头，块间没有空行。`unit` 列使用 ASCII SI 记法（如 `uA`、`ohm`、`angstrom`），默认 `utf-8`（无 BOM）也能在 Excel 中直接打开；若产品名等元数据包含中文等非 ASCII 内容，请将 `export.encoding` 设为 `utf-8-sig`。同一 scenario + seed 的数据仍一致，但 `generated_at` 与文件名时间戳会不同，比较时忽略这两项。
 
 #### WAT 与 WAT↔CP 联动
 
@@ -300,7 +300,7 @@ seed: 20260105
 
 Presets default the product name to `GEN55LOGIC`, which the YAML may override; `seed` always comes from the scenario. The CLI's `generate` writes each lot's CSV and truth files and then releases that lot's measurement arrays, so peak memory follows one lot rather than the lot count. The Python `generate()` API still returns the complete `GenerationResult`; use `generate_to_directory()` for the same streaming behaviour.
 
-> **Excel users**: the default `export.encoding: utf-8` writes no BOM, so opening the CSV by double-clicking makes Excel decode unit symbols such as `Ω`, `µA/µm`, and `Å` with the local ANSI codepage, producing mojibake. Set `export.encoding` to `utf-8-sig` in your scenario ([examples/tiny.yaml](examples/tiny.yaml) already does), or use Excel's Data → From Text/CSV and choose UTF-8 manually.
+> **Excel users**: the `unit` column uses ASCII SI notation (e.g. `uA`, `ohm`, `angstrom`), so the default BOM-less `export.encoding: utf-8` opens correctly when double-clicked. If metadata such as the product name or descriptions contains non-ASCII text, set `export.encoding` to `utf-8-sig` in your scenario ([examples/tiny.yaml](examples/tiny.yaml) already does), or use Excel's Data → From Text/CSV and choose UTF-8 manually.
 
 Generate CP data and write CP CSV:
 
@@ -337,7 +337,7 @@ die_x_mm,die_y_mm,grid_x,grid_y,test_site,hard_bin,soft_bin,pass,CP_CONT,...
 ...
 ```
 
-Each block starts with a standalone `[SECTION]` marker, and there are no blank lines between blocks. Encoding follows `export.encoding`: the default `utf-8` writes no BOM; set it to `utf-8-sig` when opening the CSV directly in Excel, otherwise non-ASCII unit symbols appear garbled. The same scenario + seed still produces identical data, but `generated_at` and the file-name timestamp differ, so comparisons should ignore both.
+Each block starts with a standalone `[SECTION]` marker, and there are no blank lines between blocks. The `unit` column uses ASCII SI notation (e.g. `uA`, `ohm`, `angstrom`), so the default BOM-less `utf-8` opens directly in Excel; if metadata such as the product name contains non-ASCII text, set `export.encoding` to `utf-8-sig`. The same scenario + seed still produces identical data, but `generated_at` and the file-name timestamp differ, so comparisons should ignore both.
 
 #### WAT and WAT↔CP linkage
 

@@ -282,6 +282,56 @@ def test_incomplete_custom_item_reports_each_missing_field(tmp_path: Path) -> No
     }
 
 
+def test_non_ascii_unit_is_rejected_with_an_ascii_hint(tmp_path: Path) -> None:
+    path = _write_scenario(
+        tmp_path,
+        """
+        schema_version: 1
+        product:
+          name: GEN55LOGIC
+        items:
+          overrides:
+            - id: CP_CUSTOM
+              phase: CP
+              test_num: 2100
+              unit: µA
+              typical: 1.0
+              distribution: normal
+        seed: 1
+        """,
+    )
+
+    result = validate_scenario(path)
+
+    assert [(issue.code, issue.path) for issue in result.issues] == [
+        ("ITEM_UNIT_NOT_ASCII", "items.overrides[0].unit")
+    ]
+    assert "'uA'" in result.issues[0].message
+
+
+def test_non_ascii_unit_on_an_existing_item_is_rejected(tmp_path: Path) -> None:
+    path = _write_scenario(
+        tmp_path,
+        """
+        schema_version: 1
+        product:
+          name: GEN55LOGIC
+        items:
+          overrides:
+            - id: WAT_TOX
+              unit: Å
+        seed: 1
+        """,
+    )
+
+    result = validate_scenario(path)
+
+    assert [(issue.code, issue.path) for issue in result.issues] == [
+        ("ITEM_UNIT_NOT_ASCII", "items.overrides[0].unit")
+    ]
+    assert "'angstrom'" in result.issues[0].message
+
+
 def test_duplicate_test_num_is_rejected(tmp_path: Path) -> None:
     path = _write_scenario(
         tmp_path,

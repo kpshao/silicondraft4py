@@ -44,6 +44,10 @@ _Avoid_：良率系统
 一个具名的电性测量，具有单位、规格上下限和明确业务含义，属于某个测试阶段（V1：CP 或 WAT）。
 _Avoid_：test parameter、测试参数（在指代定义本身时）
 
+**Unit（单位）**：
+测试项测量的物理单位；导出时使用 ASCII SI 记法（如 `uA`、`um`、`ohm/sq`、`A/cm2`、`angstrom`），不使用 `µ`、`Ω`、`Å`、`²` 等非 ASCII 符号。
+_Avoid_：SI 排版符号（`µA`、`Ω`、`Å`）
+
 **Test item catalog（测试项目录）**：
 可用的 CP/WAT 测试项集合，每项带单位、规格限与业务含义；场景从中选择并可按需覆盖。
 _Avoid_：test program（见 Test program；测试程序是完整的测试流程，不只是项目录）
@@ -178,6 +182,10 @@ _Avoid_: yield system
 **Test item**:
 A named electrical measurement with a unit, spec limits, and explicit business meaning, belonging to a test phase (CP or WAT in V1).
 _Avoid_: test parameter (when referring to the definition itself)
+
+**Unit**:
+The physical unit of a test-item measurement; exports use ASCII SI notation (e.g. `uA`, `um`, `ohm/sq`, `A/cm2`, `angstrom`) rather than non-ASCII symbols such as `µ`, `Ω`, `Å`, and `²`.
+_Avoid_: typographic SI symbols (`µA`, `Ω`, `Å`)
 
 **Test item catalog**:
 The set of available CP/WAT test items, each with a unit, spec limits, and business meaning; a scenario selects from it and may override entries.
