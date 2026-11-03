@@ -6,6 +6,19 @@ WAT 只在少量 PCM 站点测量，CP 对每颗 die 测量；两者要呈现目
 
 生成报告为每对 WAT↔CP 输出三个值：`target_r` 是配置目标；`achieved_r` 是标定后模型隐含的总体 Pearson 相关，先按 lognormal 边缘分布把目标映射到 latent 空间，再用交替最小二乘拟合 WAT communality 与 CP 灵敏度，最后解析换算回原始尺度；`observed_r` 是按上述配对对本次生成数据计算的样本 Pearson 相关，`sample_count` 为配对数。容差（目标 r ≥ 0.5 时绝对误差 ≤ 0.05，否则 ≤ 0.08）针对 `achieved_r`；`observed_r` 随 wafer 数与站点数波动，小场景不应据此判定失败。
 
+**考虑的其他方案**
+
+- WAT 站点独立抽取 die 分量：会衰减可达相关性，需要在标定中额外补偿。
+- 按 wafer 均值配对 WAT 与 CP：样本数等于 wafer 数，小场景下噪声过大。
+- 为每对单独设置 latent factor：ADR-0001 已拒绝，因为无法保证跨项一致性。
+
+**后果**
+
+- 小规模生成（例如 1 lot × 1 wafer）的 `observed_r` 可能远离目标；这是抽样噪声，`achieved_r` 仍是标定契约。
+- 默认 1 lot × 25 wafers × 9 sites 只有 225 个配对，`±0.05` 的样本误差在此规模下统计上不可达；要按 spec 容差检查生成数据本身，请使用至少 10 lots × 25 wafers × 21 sites（本仓库的相关性测试即用此规模）。
+- YMS 的相关性分析需要足够多的 wafer，估计值才会接近报告的达成值。
+- 最近 die 配对是建模简化：PCM 结构位于 scribe line，最近 die 只是局部工艺条件的代理。
+
 <details>
 <summary>English</summary>
 
@@ -26,6 +39,7 @@ For every WAT↔CP pair the generation report exposes three values. `target_r` i
 **Consequences**
 
 - Small runs (for example 1 lot x 1 wafer) can show an `observed_r` far from the target; that is sampling noise, and `achieved_r` remains the calibration contract.
+- The schema default of 1 lot x 25 wafers x 9 sites provides only 225 paired observations, where a `±0.05` sample error is statistically unreachable; to check the generated data itself against the spec tolerance, use at least 10 lots x 25 wafers x 21 sites (the size used by this repository's correlation test).
 - A YMS correlation analysis needs enough wafers before its estimates approach the reported achieved values.
 - Nearest-die pairing is a modelling simplification: PCM structures sit in scribe lines, so the nearest die is only a proxy for local process conditions.
 

@@ -81,7 +81,7 @@ die_x_mm,die_y_mm,grid_x,grid_y,test_site,hard_bin,soft_bin,pass,CP_CONT,...
 
 WAT 只在 PCM 站点测量：每个 lot 输出一个 long CSV（`{product}_{lot}_WAT_{timestamp}.csv`），一行 = wafer × site × item，列为 `lot_id,wafer_id,wat_site,site_x_mm,site_y_mm,test_num,item_id,value,unit,lsl,usl,pass,timestamp`。站点坐标以 mm 表示；`timestamp` 是该 wafer 的 WAT 测试时间（ISO 8601 UTC），早于同一 wafer 的 CP 测试时间。`export.wat_csv` 控制是否写出（默认 `true`；[examples/tiny.yaml](examples/tiny.yaml) 为保持 CP 快速开始示例而关闭）。
 
-生成时，六个 latent process factor（`F_VT`、`F_MOB`、`F_TOX`、`F_RC`、`F_LEAK`、`F_SC`）由 lot/wafer/die 三层标准化分量合成；相关 WAT 与 CP 项通过校准后的灵敏度矩阵加载同一因子。默认 28 对联动来自[测试项目录](docs/design/v1-test-item-catalog.md)，可在 scenario 中逐对覆盖或新增，支持负相关与一对多联动。WAT 站点与最近 die 的配对，以及目标/达成/观测 r 的定义见 [ADR-0006](docs/adr/0006-wat-site-pairing-and-correlation-report.md)。
+生成时，六个 latent process factor（`F_VT`、`F_MOB`、`F_TOX`、`F_RC`、`F_LEAK`、`F_SC`）由 lot/wafer/die 三层标准化分量合成；相关 WAT 与 CP 项通过校准后的灵敏度矩阵加载同一因子。默认 28 对联动来自[测试项目录](docs/design/v1-test-item-catalog.md)，可在 scenario 中逐对覆盖或新增，支持负相关与一对多联动。自定义 WAT 项没有主 latent factor，不能参与联动；需要联动时请使用内置 WAT 项。WAT 站点与最近 die 的配对，以及目标/达成/观测 r 的定义见 [ADR-0006](docs/adr/0006-wat-site-pairing-and-correlation-report.md)。
 
 ```yaml
 linkage:
@@ -100,7 +100,7 @@ linkage:
 linkage: WAT_VTN -> CP_VTHN factor=F_VT target_r=0.800 achieved_r=0.800 observed_r=0.758
 ```
 
-容差为 `|target_r| ≥ 0.5` 时绝对误差 ≤ 0.05，否则 ≤ 0.08；该容差针对 `achieved_r`。`observed_r` 是有限样本估计，规模越小波动越大。Python API 通过 `GenerationResult.wat_items`、`GenerationResult.wat_lots` 与 `GenerationResult.linkage_report` 暴露相同数据。
+容差为 `target_r ≥ 0.5` 时绝对误差 ≤ 0.05，否则 ≤ 0.08；该容差针对 `achieved_r`。`observed_r` 是有限样本估计，规模越小波动越大：默认 1 lot × 25 wafers × 9 sites 只有 225 个配对，样本 r 无法稳定满足该容差；要验证生成数据本身，请使用足够大的场景（例如 10 lots × 25 wafers × 21 sites）。Python API 通过 `GenerationResult.wat_items`、`GenerationResult.wat_lots` 与 `GenerationResult.linkage_report` 暴露相同数据。
 
 校验一个 scenario 文件。合法配置返回 0，并打印 die 数、item 数等摘要；非法配置返回 1，并给出可定位的字段路径与错误码：
 
@@ -255,7 +255,7 @@ Each block starts with a standalone `[SECTION]` marker, and there are no blank l
 
 WAT is measured at PCM sites only: each lot produces one long CSV (`{product}_{lot}_WAT_{timestamp}.csv`) with one row per wafer × site × item and columns `lot_id,wafer_id,wat_site,site_x_mm,site_y_mm,test_num,item_id,value,unit,lsl,usl,pass,timestamp`. Site coordinates are in millimetres; `timestamp` is that wafer's WAT test time (ISO 8601 UTC) and precedes the CP test time for the same wafer. `export.wat_csv` controls whether the file is written (default `true`; [examples/tiny.yaml](examples/tiny.yaml) disables it to keep the CP quick start small).
 
-Six latent process factors (`F_VT`, `F_MOB`, `F_TOX`, `F_RC`, `F_LEAK`, `F_SC`) combine standardized lot, wafer, and die components; related WAT and CP items load on the same factor through the calibrated sensitivity matrix. The 28 default pairs come from the [test item catalog](docs/design/v1-test-item-catalog.md) and can be overridden or extended per pair in the scenario; negative correlations and one-to-many links are supported. See [ADR-0006](docs/adr/0006-wat-site-pairing-and-correlation-report.md) for the WAT-site/nearest-die pairing and the target/achieved/observed correlation definitions.
+Six latent process factors (`F_VT`, `F_MOB`, `F_TOX`, `F_RC`, `F_LEAK`, `F_SC`) combine standardized lot, wafer, and die components; related WAT and CP items load on the same factor through the calibrated sensitivity matrix. The 28 default pairs come from the [test item catalog](docs/design/v1-test-item-catalog.md) and can be overridden or extended per pair in the scenario; negative correlations and one-to-many links are supported. Custom WAT items have no primary latent factor and cannot participate in linkage; use the built-in WAT items for linkage. See [ADR-0006](docs/adr/0006-wat-site-pairing-and-correlation-report.md) for the WAT-site/nearest-die pairing and the target/achieved/observed correlation definitions.
 
 ```yaml
 linkage:
@@ -274,7 +274,7 @@ linkage:
 linkage: WAT_VTN -> CP_VTHN factor=F_VT target_r=0.800 achieved_r=0.800 observed_r=0.758
 ```
 
-The tolerance is an absolute error ≤ 0.05 when `|target_r| ≥ 0.5`, otherwise ≤ 0.08; it applies to `achieved_r`. `observed_r` is a finite-sample estimate and varies more in smaller runs. The Python API exposes the same data through `GenerationResult.wat_items`, `GenerationResult.wat_lots`, and `GenerationResult.linkage_report`.
+The tolerance is an absolute error ≤ 0.05 when `target_r >= 0.5`, otherwise ≤ 0.08; it applies to `achieved_r`. `observed_r` is a finite-sample estimate and varies more in smaller runs: the schema default of 1 lot × 25 wafers × 9 sites provides only 225 pairs, where the sample r cannot reliably meet that tolerance. To verify the generated data itself, use a large enough scenario (for example 10 lots × 25 wafers × 21 sites). The Python API exposes the same data through `GenerationResult.wat_items`, `GenerationResult.wat_lots`, and `GenerationResult.linkage_report`.
 
 Validate a scenario file. A valid configuration exits 0 and prints a summary (die count, item count, and more); an invalid one exits 1 with locatable field paths and error codes:
 

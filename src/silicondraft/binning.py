@@ -191,15 +191,14 @@ def _item_failed(item: CatalogItem, column: FloatArray) -> BoolArray:
 def item_passed(item: CatalogItem, column: FloatArray) -> BoolArray:
     """Return a mask of measurements that satisfy the item's pass rule.
 
-    Bernoulli items pass when the measured flag is non-zero; other items pass
-    when every configured spec limit is satisfied.
+    Every item must satisfy its configured spec limits; Bernoulli items must
+    additionally carry a non-zero pass flag.
     """
-    if item.distribution == "bernoulli":
-        bernoulli_passed: BoolArray = column != 0
-        return bernoulli_passed
     passed = np.ones(column.shape, dtype=np.bool_)
     if item.lsl is not None:
         passed &= column >= item.lsl
     if item.usl is not None:
         passed &= column <= item.usl
+    if item.distribution == "bernoulli":
+        passed &= column != 0
     return passed

@@ -26,6 +26,7 @@ from __future__ import annotations
 import math
 from collections.abc import Mapping
 from dataclasses import dataclass
+from typing import Literal
 
 import numpy as np
 from numpy.typing import NDArray
@@ -35,11 +36,15 @@ from .scenario.models import Linkage
 
 FloatArray = NDArray[np.float64]
 
-FACTORS: tuple[str, ...] = ("F_VT", "F_MOB", "F_TOX", "F_RC", "F_LEAK", "F_SC")
-_FACTOR_INDEX: dict[str, int] = {name: index for index, name in enumerate(FACTORS)}
+Factor = Literal["F_VT", "F_MOB", "F_TOX", "F_RC", "F_LEAK", "F_SC"]
+FACTORS: tuple[Factor, ...] = ("F_VT", "F_MOB", "F_TOX", "F_RC", "F_LEAK", "F_SC")
+_FACTOR_INDEX: dict[Factor, int] = {name: index for index, name in enumerate(FACTORS)}
+
+#: Distributions that can participate in latent linkage.
+LINKABLE_DISTRIBUTIONS: frozenset[str] = frozenset({"normal", "lognormal"})
 
 #: Primary latent factor for every built-in WAT item.
-WAT_FACTOR: dict[str, str] = {
+WAT_FACTOR: dict[str, Factor] = {
     "WAT_VTN": "F_VT",
     "WAT_VTP": "F_VT",
     "WAT_IDSATN": "F_MOB",
@@ -89,6 +94,11 @@ _DEFAULT_LINKAGE: tuple[tuple[str, str, float], ...] = (
     ("WAT_VBD", "CP_IGATE", -0.45),
 )
 
+#: Item IDs referenced by at least one default linkage pair.
+DEFAULT_LINKAGE_ITEM_IDS: frozenset[str] = frozenset(
+    item for wat_item, cp_item, _ in _DEFAULT_LINKAGE for item in (wat_item, cp_item)
+)
+
 _LOT_COMPONENT_WEIGHT = 0.25
 _WAFER_COMPONENT_WEIGHT = 0.25
 _DIE_COMPONENT_WEIGHT = math.sqrt(1.0 - _LOT_COMPONENT_WEIGHT**2 - _WAFER_COMPONENT_WEIGHT**2)
@@ -107,7 +117,7 @@ class LinkagePair:
     wat_item: str
     cp_item: str
     target_r: float
-    factor: str
+    factor: Factor
 
 
 @dataclass(frozen=True, slots=True)
@@ -116,7 +126,7 @@ class LatentModel:
 
     pairs: tuple[LinkagePair, ...]
     wat_communality: Mapping[str, float]
-    cp_loadings: Mapping[str, Mapping[str, float]]
+    cp_loadings: Mapping[str, Mapping[Factor, float]]
     achieved_r: Mapping[tuple[str, str], float]
 
     def cp_noise_std(self, item_id: str) -> float:
@@ -166,8 +176,8 @@ def resolve_linkage_pairs(linkage: Linkage, catalog: Catalog) -> tuple[LinkagePa
 def _supports_linkage(wat_item: CatalogItem, cp_item: CatalogItem) -> bool:
     return (
         wat_item.id in WAT_FACTOR
-        and wat_item.distribution in {"normal", "lognormal"}
-        and cp_item.distribution in {"normal", "lognormal"}
+        and wat_item.distribution in LINKABLE_DISTRIBUTIONS
+        and cp_item.distribution in LINKABLE_DISTRIBUTIONS
     )
 
 
@@ -183,7 +193,7 @@ def build_latent_model(catalog: Catalog, linkage: Linkage) -> LatentModel:
     }
     communality, loadings = _fit(pairs, latent_targets)
 
-    cp_loadings: dict[str, dict[str, float]] = {}
+    cp_loadings: dict[str, dict[Factor, float]] = {}
     for (cp_item, factor), loading in loadings.items():
         if loading != 0.0:
             cp_loadings.setdefault(cp_item, {})[factor] = loading
@@ -298,17 +308,17 @@ def lognormal_sigma(item: CatalogItem) -> float:
 def _fit(
     pairs: tuple[LinkagePair, ...],
     latent_targets: Mapping[tuple[str, str], float],
-) -> tuple[dict[str, float], dict[tuple[str, str], float]]:
+) -> tuple[dict[str, float], dict[tuple[str, Factor], float]]:
     """Fit WAT communalities and CP factor loadings by alternating least squares."""
-    groups: dict[tuple[str, str], list[tuple[str, float]]] = {}
-    wat_pairs: dict[str, list[tuple[str, str, float]]] = {}
+    groups: dict[tuple[str, Factor], list[tuple[str, float]]] = {}
+    wat_pairs: dict[str, list[tuple[str, Factor, float]]] = {}
     for pair in pairs:
         target = latent_targets[(pair.wat_item, pair.cp_item)]
         groups.setdefault((pair.cp_item, pair.factor), []).append((pair.wat_item, target))
         wat_pairs.setdefault(pair.wat_item, []).append((pair.cp_item, pair.factor, target))
 
     communality = {wat_item: 1.0 for wat_item in wat_pairs}
-    loadings: dict[tuple[str, str], float] = {}
+    loadings: dict[tuple[str, Factor], float] = {}
     cp_items = {pair.cp_item for pair in pairs}
 
     for _ in range(_FIT_ITERATIONS):

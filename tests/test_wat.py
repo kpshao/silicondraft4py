@@ -49,6 +49,7 @@ def _write_scenario(
     item_overrides: list[dict[str, Any]] | None = None,
     export: dict[str, Any] | None = None,
     start_date: str | None = None,
+    wat_to_cp_gap_min: float | None = None,
 ) -> Path:
     document: dict[str, Any] = {
         "schema_version": 1,
@@ -59,6 +60,8 @@ def _write_scenario(
     }
     if start_date is not None:
         document["lots"]["start_date"] = start_date
+    if wat_to_cp_gap_min is not None:
+        document["lots"]["wat_to_cp_gap_min"] = wat_to_cp_gap_min
     if linkage_overrides is not None:
         document["linkage"] = {"overrides": linkage_overrides}
     if item_overrides is not None:
@@ -131,6 +134,15 @@ def test_wat_timestamps_precede_cp_on_the_configured_timeline(tmp_path: Path) ->
     assert result.wat_lots[1].wafers[0].tested_at == first_lot_start + timedelta(hours=168)
 
 
+def test_wat_to_cp_gap_must_be_positive(tmp_path: Path) -> None:
+    result = validate_scenario(_write_scenario(tmp_path, wafers_per_lot=1, wat_to_cp_gap_min=0))
+
+    assert result.ok is False
+    assert [(issue.code, issue.path) for issue in result.issues] == [
+        ("OUT_OF_RANGE", "lots.wat_to_cp_gap_min")
+    ]
+
+
 def test_timeline_defaults_anchor_to_the_generation_time(tmp_path: Path) -> None:
     scenario = load_scenario(
         _write_scenario(
@@ -180,7 +192,7 @@ _DEFAULT_LINKAGE = {
 
 
 def _tolerance(target_r: float) -> float:
-    return 0.05 if abs(target_r) >= 0.5 else 0.08
+    return 0.05 if target_r >= 0.5 else 0.08
 
 
 def test_default_linkage_report_lists_target_and_achieved_correlations(
@@ -212,6 +224,69 @@ def test_default_linkage_report_lists_target_and_achieved_correlations(
         assert abs(entry.achieved_r - target_r) <= _tolerance(target_r)
         assert math.copysign(1.0, entry.achieved_r) == math.copysign(1.0, target_r)
         assert entry.sample_count == 9
+
+
+_LINKAGE_DOC_ROW = re.compile(
+    r"^\|\s*`(?P<wat>WAT_[A-Z0-9_]+)`\s*\|\s*`(?P<cp>CP_[A-Z0-9_]+)`\s*\|"
+    r"\s*(?P<sign>[^|]+?)\s*\|\s*(?P<target>[0-9.]+)\s*\|"
+)
+
+
+def test_default_linkage_matches_the_catalog_documentation(tmp_path: Path) -> None:
+    catalog_doc = Path(__file__).resolve().parents[1] / "docs/design/v1-test-item-catalog.md"
+    documented: dict[tuple[str, str], float] = {}
+    for line in catalog_doc.read_text(encoding="utf-8").splitlines():
+        match = _LINKAGE_DOC_ROW.match(line)
+        if match is None:
+            continue
+        sign_text = match["sign"].strip()
+        sign = -1.0 if sign_text == "-" or ord(sign_text) == 0x2212 else 1.0
+        documented[(match["wat"], match["cp"])] = sign * float(match["target"])
+
+    assert len(documented) == 28
+
+    scenario = load_scenario(
+        _write_scenario(
+            tmp_path,
+            wafers_per_lot=1,
+            export={"cp_csv": False, "wat_csv": False},
+        )
+    )
+    result = generate(scenario)
+    reported = {(entry.wat_item, entry.cp_item): entry.target_r for entry in result.linkage_report}
+
+    assert reported.keys() == documented.keys()
+    for pair, target_r in documented.items():
+        assert reported[pair] == pytest.approx(target_r)
+
+
+def test_default_linkage_observed_direction_at_default_size(tmp_path: Path) -> None:
+    """At the schema default (1 lot x 25 wafers x 9 sites) sample r is noisy.
+
+    Only 225 site-die pairs are available, so the strict tolerance is not
+    statistically reachable; this test pins direction and rejects gross errors,
+    while the 10-lot test below pins the strict tolerance on a large sample.
+    """
+    scenario = load_scenario(
+        _write_scenario(
+            tmp_path,
+            lots=1,
+            wafers_per_lot=25,
+            wat_sites=9,
+            export={"cp_csv": False, "wat_csv": False},
+        )
+    )
+
+    result = generate(scenario)
+
+    assert len(result.linkage_report) == 28
+    for entry in result.linkage_report:
+        assert entry.sample_count == 25 * 9
+        assert math.copysign(1.0, entry.observed_r) == math.copysign(1.0, entry.target_r), (
+            f"{entry.wat_item}->{entry.cp_item}: target {entry.target_r:+.2f}, "
+            f"observed {entry.observed_r:+.3f}"
+        )
+        assert abs(entry.observed_r - entry.target_r) <= 0.25
 
 
 def test_default_linkage_observed_correlations_meet_tolerance_and_direction(
@@ -512,6 +587,23 @@ def test_linkage_override_to_a_custom_wat_item_without_a_factor_is_rejected(
     assert result.ok is False
     assert [issue.code for issue in result.issues] == ["LINKAGE_UNSUPPORTED_WAT_ITEM"]
     assert result.issues[0].path == "linkage.overrides[0].wat"
+
+
+def test_changing_a_default_linked_item_to_bernoulli_is_rejected(
+    tmp_path: Path,
+) -> None:
+    result = validate_scenario(
+        _write_scenario(
+            tmp_path,
+            wafers_per_lot=1,
+            item_overrides=[{"id": "CP_FRO", "distribution": "bernoulli"}],
+        )
+    )
+
+    assert result.ok is False
+    assert [(issue.code, issue.path) for issue in result.issues] == [
+        ("LINKAGE_UNSUPPORTED_DISTRIBUTION", "items.overrides[0].distribution")
+    ]
 
 
 def test_removing_a_linked_cp_item_drops_its_default_pairs(tmp_path: Path) -> None:
