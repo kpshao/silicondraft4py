@@ -9,19 +9,21 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QAction, QCloseEvent, QKeySequence
 from PySide6.QtWidgets import (
     QComboBox,
+    QDialog,
     QFileDialog,
     QLabel,
     QListWidget,
     QMainWindow,
     QProgressBar,
     QSplitter,
+    QTabWidget,
     QToolBar,
     QVBoxLayout,
     QWidget,
 )
 
 from .. import __version__
-from ..api import GenerationProgress, generate
+from ..api import GenerationProgress, export, generate
 from ..dataset import GenerationResult
 from ..errors import ScenarioError, ValidationIssue
 from ..scenario import (
@@ -31,6 +33,8 @@ from ..scenario import (
     save_scenario,
     scenario_from_preset,
 )
+from .export_dialog import ExportDialog
+from .result_table import ResultsPanel
 from .scenario_tree import ScenarioTree
 from .worker import GenerateFn, GenerationWorker
 
@@ -60,6 +64,7 @@ class MainWindow(QMainWindow):
         self._worker_settled = False
         self._last_result: GenerationResult | None = None
         self._last_issues: tuple[ValidationIssue, ...] = ()
+        self._last_export_paths: tuple[Path, ...] = ()
 
         self._build_ui()
         self._update_actions()
@@ -89,8 +94,13 @@ class MainWindow(QMainWindow):
 
     @property
     def last_issues(self) -> tuple[ValidationIssue, ...]:
-        """The issues from the most recent load, save, or generation failure."""
+        """The issues from the most recent load, save, generation, or export failure."""
         return self._last_issues
+
+    @property
+    def last_export_paths(self) -> tuple[Path, ...]:
+        """The files written by the most recent successful export."""
+        return self._last_export_paths
 
     # -- scenario state -----------------------------------------------------
 
@@ -142,6 +152,8 @@ class MainWindow(QMainWindow):
         self._scenario = scenario
         self._scenario_path = Path(path) if path is not None else None
         self._last_result = None
+        self._last_export_paths = ()
+        self.results_panel.set_result(None)
         self._clear_issues()
         self.tree.set_scenario(scenario)
         self._sync_preset_combo()
@@ -175,6 +187,8 @@ class MainWindow(QMainWindow):
             return False
         self._clear_issues()
         self._last_result = None
+        self._last_export_paths = ()
+        self.results_panel.set_result(None)
         self._worker_settled = False
         self.progress_bar.setRange(0, self._scenario.lots.wafer_count)
         self.progress_bar.setValue(0)
@@ -201,6 +215,36 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(self.tr("Cancelling..."))
         self._worker.cancel()
 
+    # -- export -------------------------------------------------------------
+
+    def export_to_directory(self, out_dir: str | Path) -> bool:
+        """Export the current result's CSV files and report the outcome."""
+        result = self._last_result
+        if result is None or self._worker is not None:
+            return False
+        options = result.scenario.export
+        if not (options.cp_csv or options.wat_csv):
+            message = self.tr("the scenario has no CSV export enabled.")
+            self._last_export_paths = ()
+            self._show_error(self.tr("Export failed: {message}").format(message=message))
+            return False
+        try:
+            paths = export(result, out_dir, formats=("csv",))
+        except Exception as exc:
+            self._last_export_paths = ()
+            self._show_error(self.tr("Export failed: {message}").format(message=exc))
+            return False
+        self._last_export_paths = paths
+        self._clear_issues()
+        self.statusBar().showMessage(
+            self.tr("Exported {count} file(s) to {path}").format(count=len(paths), path=out_dir)
+        )
+        return True
+
+    @property
+    def _can_export(self) -> bool:
+        return self._last_result is not None and self._worker is None
+
     # -- UI construction ----------------------------------------------------
 
     def _build_ui(self) -> None:
@@ -208,14 +252,19 @@ class MainWindow(QMainWindow):
 
         self.issues_label = QLabel(self.tr("Configuration issues"), self)
         self.issues_list = QListWidget(self)
-        issues_panel = QWidget(self)
-        issues_layout = QVBoxLayout(issues_panel)
+        self.issues_panel = QWidget(self)
+        issues_layout = QVBoxLayout(self.issues_panel)
         issues_layout.addWidget(self.issues_label)
         issues_layout.addWidget(self.issues_list)
 
+        self.results_panel = ResultsPanel(self)
+        self.preview_tabs = QTabWidget(self)
+        self.preview_tabs.addTab(self.issues_panel, self.tr("Issues"))
+        self.preview_tabs.addTab(self.results_panel, self.tr("Results"))
+
         splitter = QSplitter(Qt.Orientation.Horizontal, self)
         splitter.addWidget(self.tree)
-        splitter.addWidget(issues_panel)
+        splitter.addWidget(self.preview_tabs)
         splitter.setStretchFactor(0, 3)
         splitter.setStretchFactor(1, 2)
         self.setCentralWidget(splitter)
@@ -237,6 +286,9 @@ class MainWindow(QMainWindow):
         self.cancel_action = QAction(self.tr("Cancel"), self)
         self.cancel_action.triggered.connect(self.cancel_generation)
 
+        self.export_action = QAction(self.tr("Export..."), self)
+        self.export_action.triggered.connect(self._open_export_dialog)
+
         toolbar = QToolBar(self.tr("Main"), self)
         toolbar.setMovable(False)
         toolbar.addAction(self.open_action)
@@ -253,6 +305,8 @@ class MainWindow(QMainWindow):
         toolbar.addSeparator()
         toolbar.addAction(self.generate_action)
         toolbar.addAction(self.cancel_action)
+        toolbar.addSeparator()
+        toolbar.addAction(self.export_action)
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, toolbar)
 
         file_menu = self.menuBar().addMenu(self.tr("&File"))
@@ -295,6 +349,8 @@ class MainWindow(QMainWindow):
         self._last_result = result
         wafer_count = sum(len(lot.wafers) for lot in result.lots)
         die_count = sum(lot.die_count for lot in result.lots)
+        self.results_panel.set_result(result)
+        self.preview_tabs.setCurrentWidget(self.results_panel)
         self.statusBar().showMessage(
             self.tr("Generation complete: {lots} lot(s), {wafers} wafer(s), {dies} die(s)").format(
                 lots=len(result.lots), wafers=wafer_count, dies=die_count
@@ -360,6 +416,21 @@ class MainWindow(QMainWindow):
         if path:
             self.save_to_path(path)
 
+    def _open_export_dialog(self) -> None:
+        if not self._can_export:
+            return
+        dialog = ExportDialog(self._default_export_dir(), self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        out_dir = dialog.output_dir()
+        if out_dir is not None:
+            self.export_to_directory(out_dir)
+
+    def _default_export_dir(self) -> Path:
+        if self._scenario_path is not None:
+            return self._scenario_path.parent
+        return Path.cwd()
+
     def _on_preset_changed(self, index: int) -> None:
         name = self.preset_combo.itemData(index)
         if not isinstance(name, str):
@@ -381,12 +452,14 @@ class MainWindow(QMainWindow):
         self.issues_list.clear()
         for issue in issues:
             self.issues_list.addItem(f"{issue.path}: {issue.message} [{issue.code}]")
+        self.preview_tabs.setCurrentWidget(self.issues_panel)
         self.statusBar().showMessage(message)
 
     def _show_error(self, message: str) -> None:
         self._last_issues = ()
         self.issues_list.clear()
         self.issues_list.addItem(message)
+        self.preview_tabs.setCurrentWidget(self.issues_panel)
         self.statusBar().showMessage(message)
 
     def _clear_issues(self) -> None:
@@ -401,6 +474,7 @@ class MainWindow(QMainWindow):
         self.save_as_action.setEnabled(has_scenario and not running)
         self.generate_action.setEnabled(has_scenario and not running)
         self.cancel_action.setEnabled(running)
+        self.export_action.setEnabled(self._can_export and not running)
         self.preset_combo.setEnabled(not running)
 
     def _update_title(self) -> None:

@@ -1,9 +1,8 @@
 """pytest-qt smoke tests for the GUI backbone."""
 
 import time
+from datetime import UTC, datetime
 from pathlib import Path
-from types import SimpleNamespace
-from typing import cast
 
 import yaml
 from PySide6.QtWidgets import QApplication
@@ -19,9 +18,18 @@ from silicondraft.api import CancelCheck, ProgressCallback
 from silicondraft.gui.app import create_application
 from silicondraft.gui.main_window import MainWindow
 from silicondraft.gui.worker import GenerateFn
-from silicondraft.scenario.models import Scenario
+from silicondraft.scenario.models import Product, Scenario
 
-_FAKE_RESULT = cast(GenerationResult, SimpleNamespace(lots=()))
+_FAKE_RESULT = GenerationResult(
+    scenario=Scenario(schema_version=1, product=Product(name="FAKE55"), seed=1),
+    items=(),
+    wat_items=(),
+    lots=(),
+    wat_lots=(),
+    linkage_report=(),
+    pattern_reports=(),
+    generated_at=datetime(2026, 1, 1, tzinfo=UTC),
+)
 
 
 def _write_scenario(tmp_path: Path, document: dict[str, object] | None = None) -> Path:
@@ -89,6 +97,7 @@ def test_window_starts_empty_and_loads_a_scenario(qtbot: QtBot, tmp_path: Path) 
     window.show()
 
     assert not window.generate_action.isEnabled()
+    assert not window.export_action.isEnabled()
     assert window.load_path(path)
 
     assert window.scenario == load_scenario(path)
@@ -96,6 +105,7 @@ def test_window_starts_empty_and_loads_a_scenario(qtbot: QtBot, tmp_path: Path) 
     assert window.tree.topLevelItemCount() > 0
     assert window.generate_action.isEnabled()
     assert window.save_action.isEnabled()
+    assert not window.export_action.isEnabled()
     assert window.issues_list.count() == 0
     assert "Loaded scenario" in window.statusBar().currentMessage()
 
@@ -147,6 +157,7 @@ def test_generate_runs_in_a_worker_and_reports_progress(qtbot: QtBot, tmp_path: 
         assert window.start_generation()
         assert window.generation_running
         assert not window.generate_action.isEnabled()
+        assert not window.export_action.isEnabled()
         assert window.cancel_action.isEnabled()
         assert window.progress_bar.isVisible()
 
@@ -158,6 +169,7 @@ def test_generate_runs_in_a_worker_and_reports_progress(qtbot: QtBot, tmp_path: 
     assert window.progress_bar.value() == 3
     assert not window.progress_bar.isVisible()
     assert window.generate_action.isEnabled()
+    assert window.export_action.isEnabled()
     assert not window.cancel_action.isEnabled()
     assert "Generation complete" in window.statusBar().currentMessage()
 
@@ -210,6 +222,8 @@ def test_loading_a_scenario_discards_the_previous_result(qtbot: QtBot, tmp_path:
     assert window.load_path(_write_scenario(second_dir))
 
     assert window.last_result is None
+    assert window.results_panel.model.total_rows == 0
+    assert not window.export_action.isEnabled()
 
 
 def test_cancel_stops_generation_and_restores_the_window(qtbot: QtBot, tmp_path: Path) -> None:
@@ -232,6 +246,7 @@ def test_cancel_stops_generation_and_restores_the_window(qtbot: QtBot, tmp_path:
     assert window.last_result is None
     assert "cancelled" in window.statusBar().currentMessage().lower()
     assert window.generate_action.isEnabled()
+    assert not window.export_action.isEnabled()
     assert not window.cancel_action.isEnabled()
     assert window.open_action.isEnabled()
     assert window.preset_combo.isEnabled()
