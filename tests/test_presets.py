@@ -160,3 +160,20 @@ def test_custom_id_templates_apply_to_every_lot(tmp_path: Path) -> None:
     assert [lot.lot_id for lot in result.lots] == ["GEN55LOGIC-B01", "GEN55LOGIC-B02"]
     assert [wafer.wafer_id for wafer in result.lots[0].wafers] == ["L1-W1", "L1-W2"]
     assert [wafer.wafer_id for wafer in result.lots[1].wafers] == ["L2-W1", "L2-W2"]
+
+
+def test_trend_preset_generates_5x25_through_the_cli(tmp_path: Path, capsys: Any) -> None:
+    document = _preset_document("trend")
+    document["export"] = {
+        "cp_csv": False,
+        "wat_csv": False,
+        "ground_truth": False,
+        "include_die_truth": False,
+    }
+    scenario_path = _write_scenario(tmp_path, document)
+
+    exit_code = main(["generate", "-c", str(scenario_path), "-o", str(tmp_path / "out")])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "generated: 5 lot(s), 125 wafer(s), 337500 die(s)" in captured.out

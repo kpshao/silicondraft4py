@@ -10,7 +10,12 @@ about reproducibility.
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import Any
+from typing import Any, get_args
+
+from .models import ScenarioPreset
+
+#: Preset names derived from the schema literal, so the two never drift apart.
+PRESET_NAMES: tuple[str, ...] = tuple(get_args(ScenarioPreset))
 
 _PRESETS: dict[str, dict[str, Any]] = {
     "quick": {
@@ -74,6 +79,9 @@ _PRESETS: dict[str, dict[str, Any]] = {
         },
     },
 }
+
+
+assert set(_PRESETS) == set(PRESET_NAMES), "preset definitions must match ScenarioPreset"
 
 
 def expand_preset(document: object) -> object:

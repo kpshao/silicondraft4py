@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-import json
 import math
 from collections.abc import Iterator, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from os import PathLike
 from pathlib import Path
@@ -21,6 +20,7 @@ from .dataset import (
     GenerationResult,
     IntArray,
     LinkageReportEntry,
+    PatternAccumulator,
     PatternReport,
     WatLot,
     WatWafer,
@@ -35,6 +35,7 @@ from .exporters.groundtruth import (
     export_ground_truth,
     manifest_filename,
     write_die_truth_file,
+    write_manifest_file,
 )
 from .geometry import (
     DieLayout,
@@ -52,7 +53,7 @@ from .latent import (
     sample_measurements,
     wat_latent,
 )
-from .patterns import apply_pattern, pattern_id, select_yield_failure_item
+from .patterns import apply_pattern, select_yield_failure_item
 from .scenario.models import Lots, Scenario
 from .scenario.validation import validate_scenario_model
 
@@ -64,27 +65,6 @@ _TAG_WAT_NOISE = 0x21
 _TAG_PATTERN = 0x30
 _TAG_PATTERN_SCOPE = 0x31
 _TAG_DEFECT = 0x40
-
-
-@dataclass
-class _PatternAccumulator:
-    """Mutable per-pattern totals collected across lots and wafers."""
-
-    affected_die_count: int = 0
-    realized_failures: int = 0
-    item_shift_sum: float = 0.0
-    item_shift_die_count: int = 0
-    recovery_probability_sum: float = 0.0
-    affected_wafers: list[tuple[str, str]] = field(default_factory=list)
-
-    def add_report(self, report: PatternReport) -> None:
-        """Merge one lot's pattern report into this total."""
-        self.affected_die_count += report.affected_die_count
-        self.realized_failures += report.realized_failures
-        self.item_shift_sum += report.item_shift_sum
-        self.item_shift_die_count += report.item_shift_die_count
-        self.recovery_probability_sum += report.recovery_probability_sum
-        self.affected_wafers.extend(report.affected_wafers)
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,16 +98,12 @@ class _LotData:
 class StreamingSummary:
     """Outcome of a streaming generation and export run."""
 
-    scenario: Scenario
-    items: tuple[CatalogItem, ...]
-    wat_items: tuple[CatalogItem, ...]
     lot_count: int
     wafer_count: int
     die_count: int
     pass_count: int
     linkage_report: tuple[LinkageReportEntry, ...]
     pattern_reports: tuple[PatternReport, ...]
-    generated_at: datetime
 
 
 def generate(scenario: Scenario) -> GenerationResult:
@@ -137,14 +113,14 @@ def generate(scenario: Scenario) -> GenerationResult:
     produce data before its geometry and item references are checked.
     """
     prepared = _prepare(scenario)
-    pattern_totals = [_PatternAccumulator() for _ in scenario.patterns]
+    pattern_totals = [PatternAccumulator() for _ in scenario.patterns]
     lots: list[CPLot] = []
     wat_lots: list[WatLot] = []
     for data in _iter_lots(prepared):
         lots.append(data.cp_lot)
         wat_lots.append(data.wat_lot)
         for index, report in enumerate(data.pattern_reports):
-            pattern_totals[index].add_report(report)
+            pattern_totals[index].add(report)
 
     return GenerationResult(
         scenario=scenario,
@@ -155,9 +131,7 @@ def generate(scenario: Scenario) -> GenerationResult:
         linkage_report=_linkage_report(
             prepared.latent_model, tuple(lots), tuple(wat_lots), prepared.nearest_dies
         ),
-        pattern_reports=tuple(
-            _pattern_report(index, totals) for index, totals in enumerate(pattern_totals)
-        ),
+        pattern_reports=tuple(totals.report(index) for index, totals in enumerate(pattern_totals)),
         generated_at=prepared.generated_at,
     )
 
@@ -198,7 +172,6 @@ def export(
 def generate_to_directory(
     scenario: Scenario,
     out_dir: str | PathLike[str],
-    formats: Sequence[str] = ("csv",),
     *,
     include_die_truth: bool | None = None,
 ) -> tuple[StreamingSummary, tuple[Path, ...]]:
@@ -209,7 +182,6 @@ def generate_to_directory(
     CLI's generation path; the in-memory :func:`generate` remains available for
     API callers that need the complete dataset.
     """
-    _check_formats(formats)
     prepared = _prepare(scenario)
     scenario_config = scenario.export
     out = Path(out_dir)
@@ -222,7 +194,7 @@ def generate_to_directory(
         ManifestBuilder(scenario, prepared.generated_at) if scenario_config.ground_truth else None
     )
     linkage = _LinkageMoments(prepared.latent_model, prepared.nearest_dies)
-    pattern_totals = [_PatternAccumulator() for _ in scenario.patterns]
+    pattern_totals = [PatternAccumulator() for _ in scenario.patterns]
 
     paths: list[Path] = []
     lot_count = 0
@@ -263,34 +235,24 @@ def generate_to_directory(
                 )
             linkage.add(data.cp_lot, data.wat_lot)
             for index, report in enumerate(data.pattern_reports):
-                pattern_totals[index].add_report(report)
+                pattern_totals[index].add(report)
 
         linkage_report = linkage.build()
         if builder is not None:
             builder.add_linkage(linkage_report)
             manifest_path = out / manifest_filename(product, timestamp)
-            out.mkdir(parents=True, exist_ok=True)
-            manifest = builder.build()
-            with manifest_path.open("w", encoding="utf-8") as stream:
-                json.dump(manifest, stream, ensure_ascii=False, indent=2)
-                stream.write("\n")
+            write_manifest_file(manifest_path, builder.build())
             paths.append(manifest_path)
     except OSError as exc:
         raise ExportError(f"cannot export to {out_dir}: {exc}") from exc
 
     summary = StreamingSummary(
-        scenario=scenario,
-        items=prepared.items,
-        wat_items=prepared.wat_items,
         lot_count=lot_count,
         wafer_count=wafer_count,
         die_count=die_count,
         pass_count=pass_count,
         linkage_report=linkage_report,
-        pattern_reports=tuple(
-            _pattern_report(index, totals) for index, totals in enumerate(pattern_totals)
-        ),
-        generated_at=prepared.generated_at,
+        pattern_reports=tuple(totals.report(index) for index, totals in enumerate(pattern_totals)),
     )
     return summary, tuple(paths)
 
@@ -338,7 +300,7 @@ def _iter_lots(prepared: _Prepared) -> Iterator[_LotData]:
         lot_id = scenario.lots.lot_id_template.format(product=scenario.product.name, lot=lot_number)
         lot_factors = _rng(scenario.seed, _TAG_LOT_FACTOR, lot_number).standard_normal(factor_count)
         wafer_scoped_targets = _wafer_scoped_targets(scenario, lot_number)
-        pattern_stats = [_PatternAccumulator() for _ in scenario.patterns]
+        pattern_stats = [PatternAccumulator() for _ in scenario.patterns]
         wafers: list[CPWafer] = []
         wat_wafers: list[WatWafer] = []
         for wafer_number in range(1, scenario.lots.wafers_per_lot + 1):
@@ -446,22 +408,8 @@ def _iter_lots(prepared: _Prepared) -> Iterator[_LotData]:
         yield _LotData(
             cp_lot=CPLot(lot_id=lot_id, wafers=tuple(wafers)),
             wat_lot=WatLot(lot_id=lot_id, wafers=tuple(wat_wafers)),
-            pattern_reports=tuple(
-                _pattern_report(index, stats) for index, stats in enumerate(pattern_stats)
-            ),
+            pattern_reports=tuple(stats.report(index) for index, stats in enumerate(pattern_stats)),
         )
-
-
-def _pattern_report(index: int, stats: _PatternAccumulator) -> PatternReport:
-    return PatternReport(
-        pattern_id=pattern_id(index),
-        affected_die_count=stats.affected_die_count,
-        realized_failures=stats.realized_failures,
-        item_shift_sum=stats.item_shift_sum,
-        item_shift_die_count=stats.item_shift_die_count,
-        recovery_probability_sum=stats.recovery_probability_sum,
-        affected_wafers=tuple(stats.affected_wafers),
-    )
 
 
 def _check_formats(formats: Sequence[str]) -> None:

@@ -24,8 +24,16 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
-from ..dataset import CPLot, CPWafer, GenerationResult, LinkageReportEntry, PatternReport
+from ..dataset import (
+    CPLot,
+    CPWafer,
+    GenerationResult,
+    LinkageReportEntry,
+    PatternAccumulator,
+    PatternReport,
+)
 from ..latent import FACTORS
+from ..patterns import pattern_id
 from ..scenario.models import Pattern, Scenario
 from .common import (
     CsvWriter,
@@ -80,11 +88,17 @@ def export_ground_truth(
 
     manifest = build_manifest(result, die_truth_files)
     manifest_path = out_dir / manifest_filename(product, timestamp)
-    with manifest_path.open("w", encoding="utf-8") as stream:
-        json.dump(manifest, stream, ensure_ascii=False, indent=2)
-        stream.write("\n")
+    write_manifest_file(manifest_path, manifest)
     paths.append(manifest_path)
     return tuple(paths)
+
+
+def write_manifest_file(path: Path, manifest: Mapping[str, Any]) -> None:
+    """Write a manifest JSON document, creating its directory."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as stream:
+        json.dump(manifest, stream, ensure_ascii=False, indent=2)
+        stream.write("\n")
 
 
 def die_truth_filename(product: str, lot_id: str, timestamp: str) -> str:
@@ -112,34 +126,13 @@ def write_die_truth_file(path: Path, lot: CPLot) -> None:
 
 
 @dataclass
-class _PatternTotal:
-    """Accumulated contribution of one pattern across lots."""
-
-    affected_die_count: int = 0
-    realized_failures: int = 0
-    item_shift_sum: float = 0.0
-    item_shift_die_count: int = 0
-    recovery_probability_sum: float = 0.0
-    affected_wafers: list[tuple[str, str]] = field(default_factory=list)
-
-    def add(self, report: PatternReport) -> None:
-        """Merge one lot's report into this total."""
-        self.affected_die_count += report.affected_die_count
-        self.realized_failures += report.realized_failures
-        self.item_shift_sum += report.item_shift_sum
-        self.item_shift_die_count += report.item_shift_die_count
-        self.recovery_probability_sum += report.recovery_probability_sum
-        self.affected_wafers.extend(report.affected_wafers)
-
-
-@dataclass
 class ManifestBuilder:
     """Accumulate manifest data one lot at a time."""
 
     scenario: Scenario
     generated_at: datetime
     _lots: list[dict[str, Any]] = field(default_factory=list)
-    _pattern_totals: list[_PatternTotal] = field(init=False)
+    _pattern_totals: list[PatternAccumulator] = field(init=False)
     _die_truth_files: dict[str, str] = field(default_factory=dict)
     _linkage: list[dict[str, Any]] = field(default_factory=list)
     _wafer_yields: dict[tuple[str, str], float] = field(default_factory=dict)
@@ -149,14 +142,15 @@ class ManifestBuilder:
     _cluster_count: int = 0
 
     def __post_init__(self) -> None:
-        self._pattern_totals = [_PatternTotal() for _ in self.scenario.patterns]
+        self._pattern_totals = [PatternAccumulator() for _ in self.scenario.patterns]
 
     def add_pattern_reports(self, reports: Iterable[PatternReport]) -> None:
-        """Merge pattern contributions, matching IDs to their scenario entries."""
-        for report in reports:
-            index = _pattern_index(report.pattern_id)
-            if index is not None and index < len(self._pattern_totals):
-                self._pattern_totals[index].add(report)
+        """Merge one report per scenario pattern into the running totals."""
+        report_tuple = tuple(reports)
+        if not report_tuple:
+            return
+        for total, report in zip(self._pattern_totals, report_tuple, strict=True):
+            total.add(report)
 
     def add_lot(
         self,
@@ -267,7 +261,7 @@ class ManifestBuilder:
             if pattern.scope != "wafer":
                 continue
             for lot_id, wafer_id in self._pattern_totals[index].affected_wafers:
-                outliers.setdefault((lot_id, wafer_id), []).append(f"pattern_{index + 1}")
+                outliers.setdefault((lot_id, wafer_id), []).append(pattern_id(index))
         return outliers
 
     def _outlier_wafers(
@@ -292,16 +286,6 @@ def build_manifest(result: GenerationResult, die_truth_files: Mapping[str, str])
         builder.add_lot(lot, die_truth_file=die_truth_files.get(lot.lot_id))
     builder.add_linkage(result.linkage_report)
     return builder.build()
-
-
-def _pattern_index(pattern_id: str) -> int | None:
-    prefix = "pattern_"
-    if not pattern_id.startswith(prefix):
-        return None
-    try:
-        return int(pattern_id[len(prefix) :]) - 1
-    except ValueError:
-        return None
 
 
 def _wafer_entry(wafer: CPWafer) -> dict[str, Any]:
@@ -332,12 +316,12 @@ def _wafer_entry(wafer: CPWafer) -> dict[str, Any]:
     }
 
 
-def _pattern_entry(index: int, pattern: Pattern, total: _PatternTotal) -> dict[str, Any]:
+def _pattern_entry(index: int, pattern: Pattern, total: PatternAccumulator) -> dict[str, Any]:
     mean_shift = (
         total.item_shift_sum / total.item_shift_die_count if total.item_shift_die_count else 0.0
     )
     return {
-        "id": f"pattern_{index + 1}",
+        "id": pattern_id(index),
         "kind": pattern.kind,
         "scope": pattern.scope,
         "target": pattern.target,

@@ -19,6 +19,7 @@
 - 原始 YAML 在展开前不满足 JSON Schema 的 `product` 必填约束；`silicondraft validate`/`generate` 通过 loader 展开后校验。外部 JSON Schema 工具应校验展开后的文档，GUI 保存时应写展开后的 scenario（后续里程碑）。
 - 列表是整体替换：在预设的 `patterns` 上追加需要写完整列表，不能只写新增项。
 - 流式路径在导出中途失败时会留下已写出的部分文件；这与“导出非事务”一致，重新运行到新目录即可。`generate()` + `export()` 仍在全部生成成功后统一写出。
+- 流式路径仍保留 manifest 所需的每 lot / 每 wafer 摘要（良率、latent 均值、缺陷坐标、模式贡献），这些是小对象，随 lot/wafer 数线性增长；被释放的是逐 die 测量数组，峰值内存因此由单 lot 数据主导。
 - 流式 `observed_r` 由分块矩合并得到，与一次性 Pearson 计算可能有约 1e-12 量级的浮点差异；契约仍是样本估计值，不使用精确浮点比较。
 - 日志与 manifest 的 `scenario_sha256` 包含预设名与展开后的字段；修改预设定义会改变 hash，这是期望的可复现性行为。
 
@@ -46,6 +47,7 @@ Generation splits into two layers. `generate(scenario)` keeps its public contrac
 - Before expansion, raw YAML does not satisfy the JSON Schema's required `product`; `silicondraft validate`/`generate` expand it in the loader before validating. External JSON Schema tooling should validate the expanded document, and the GUI should save the expanded scenario (later milestone).
 - Lists replace wholesale: appending to a preset's `patterns` requires writing the full list, not just the new entry.
 - A streaming failure mid-export can leave partial files behind, consistent with non-transactional export; rerunning into a new directory is safe. `generate()` + `export()` still write only after all generation succeeds.
+- The streaming path still retains the per-lot/per-wafer summaries the manifest needs (yields, latent means, defect coordinates, pattern contributions); these are small objects that grow with the lot/wafer count. The released data is the per-die measurement arrays, so peak memory is dominated by one lot.
 - Streaming `observed_r` comes from merged chunk moments and can differ from a one-shot Pearson calculation by roughly 1e-12; it remains a sample estimate, and tests do not require exact float equality.
 - Logs and the manifest's `scenario_sha256` include the preset name and the expanded fields; changing a preset definition changes the hash, which is the intended reproducibility behaviour.
 
