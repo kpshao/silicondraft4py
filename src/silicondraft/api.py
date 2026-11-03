@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from os import PathLike
@@ -26,7 +26,7 @@ from .dataset import (
     WatWafer,
 )
 from .defects import apply_random_defects
-from .errors import ExportError, ScenarioError
+from .errors import ExportError, GenerationCancelled, ScenarioError
 from .exporters import export_cp_csv, export_wat_csv
 from .exporters.common import safe_filename_part, timestamp_token
 from .exporters.groundtruth import (
@@ -106,17 +106,47 @@ class StreamingSummary:
     pattern_reports: tuple[PatternReport, ...]
 
 
-def generate(scenario: Scenario) -> GenerationResult:
+@dataclass(frozen=True, slots=True)
+class GenerationProgress:
+    """How far a generation run has advanced, reported after each wafer."""
+
+    lot_number: int
+    lot_count: int
+    wafer_number: int
+    wafers_per_lot: int
+    completed_wafers: int
+    total_wafers: int
+    lot_id: str
+    wafer_id: str
+
+
+#: Called after each wafer with the run's cumulative progress.
+ProgressCallback = Callable[[GenerationProgress], None]
+#: Polled before each wafer; returning ``True`` aborts the run.
+CancelCheck = Callable[[], bool]
+
+
+def generate(
+    scenario: Scenario,
+    *,
+    progress: ProgressCallback | None = None,
+    should_cancel: CancelCheck | None = None,
+) -> GenerationResult:
     """Generate CP and WAT data for a validated scenario.
 
     The scenario is re-validated here so that a hand-built ``Scenario`` cannot
     produce data before its geometry and item references are checked.
+
+    ``progress`` is called after every wafer. ``should_cancel`` is polled
+    between wafers; when it returns ``True`` the run raises
+    :class:`~silicondraft.GenerationCancelled` instead of returning a partial
+    result.
     """
     prepared = _prepare(scenario)
     pattern_totals = [PatternAccumulator() for _ in scenario.patterns]
     lots: list[CPLot] = []
     wat_lots: list[WatLot] = []
-    for data in _iter_lots(prepared):
+    for data in _iter_lots(prepared, progress=progress, should_cancel=should_cancel):
         lots.append(data.cp_lot)
         wat_lots.append(data.wat_lot)
         for index, report in enumerate(data.pattern_reports):
@@ -293,9 +323,16 @@ def _prepare(scenario: Scenario) -> _Prepared:
     )
 
 
-def _iter_lots(prepared: _Prepared) -> Iterator[_LotData]:
+def _iter_lots(
+    prepared: _Prepared,
+    *,
+    progress: ProgressCallback | None = None,
+    should_cancel: CancelCheck | None = None,
+) -> Iterator[_LotData]:
     scenario = prepared.scenario
     factor_count = len(FACTORS)
+    total_wafers = scenario.lots.wafer_count
+    completed_wafers = 0
     for lot_number in range(1, scenario.lots.count + 1):
         lot_id = scenario.lots.lot_id_template.format(product=scenario.product.name, lot=lot_number)
         lot_factors = _rng(scenario.seed, _TAG_LOT_FACTOR, lot_number).standard_normal(factor_count)
@@ -304,6 +341,8 @@ def _iter_lots(prepared: _Prepared) -> Iterator[_LotData]:
         wafers: list[CPWafer] = []
         wat_wafers: list[WatWafer] = []
         for wafer_number in range(1, scenario.lots.wafers_per_lot + 1):
+            if should_cancel is not None and should_cancel():
+                raise GenerationCancelled
             wafer_id = scenario.lots.wafer_id_template.format(
                 product=scenario.product.name, lot=lot_number, wafer=wafer_number
             )
@@ -405,6 +444,20 @@ def _iter_lots(prepared: _Prepared) -> Iterator[_LotData]:
                     tested_at=wat_time,
                 )
             )
+            completed_wafers += 1
+            if progress is not None:
+                progress(
+                    GenerationProgress(
+                        lot_number=lot_number,
+                        lot_count=scenario.lots.count,
+                        wafer_number=wafer_number,
+                        wafers_per_lot=scenario.lots.wafers_per_lot,
+                        completed_wafers=completed_wafers,
+                        total_wafers=total_wafers,
+                        lot_id=lot_id,
+                        wafer_id=wafer_id,
+                    )
+                )
         yield _LotData(
             cp_lot=CPLot(lot_id=lot_id, wafers=tuple(wafers)),
             wat_lot=WatLot(lot_id=lot_id, wafers=tuple(wat_wafers)),

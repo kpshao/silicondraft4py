@@ -91,6 +91,11 @@ class Lots(_StrictModel):
     cp_duration_min_per_wafer: PositiveFloat = 45.0
     lot_interval_hours: NonNegativeFloat = 168.0
 
+    @property
+    def wafer_count(self) -> int:
+        """Total number of wafers across all lots."""
+        return self.count * self.wafers_per_lot
+
 
 class ItemOverride(_StrictModel):
     """A patch to a built-in test item, or a complete custom item.

@@ -24,13 +24,21 @@ dependencies = [
 
 [project.scripts]
 silicondraft = "silicondraft.cli:main"
+silicondraft-gui = "silicondraft.gui.app:main"
+
+[project.optional-dependencies]
+gui = [
+    "pyside6-essentials>=6.8,<7",
+]
 
 [dependency-groups]
 dev = [
     "hypothesis>=6.122",
     "jsonschema>=4.23",
     "mypy>=1.15",
+    "pyside6-essentials>=6.8,<7",
     "pytest>=8.3",
+    "pytest-qt>=4.5.0",
     "ruff>=0.9",
     "types-PyYAML>=6.0.12",
     "types-jsonschema>=4.23",
@@ -42,6 +50,7 @@ packages = ["src/silicondraft"]
 [tool.pytest.ini_options]
 addopts = "-ra"
 testpaths = ["tests"]
+qt_api = "pyside6"
 
 [tool.ruff]
 line-length = 100
