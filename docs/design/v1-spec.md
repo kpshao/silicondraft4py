@@ -215,6 +215,7 @@ V1 模式目录：`center-high`、`center-low`、`edge-high`、`edge-low`、`rin
 - **WAT CSV**：每个 lot 一个 long CSV，一行 = wafer × site × item；列包含 site 的 mm 坐标、test_num、item_id、value、unit、LSL/USL、pass、timestamp。
 - 文件命名：STDF 与 WAT CSV 为 `{product}_{lot}_{phase}_{timestamp}.{ext}`；CP CSV 为 `{product}_{lot}_{wafer}_CP_{timestamp}.csv`。
 - 默认 UTF-8 无 BOM；可选 BOM 以兼容 Excel。
+- `unit` 使用 ASCII SI 记法（`uA`、`um`、`ohm`、`ohm/sq`、`A/cm2`、`angstrom` 等）；scenario override 中的非 ASCII 单位会被校验拒绝。
 - CP CSV 固定按 wafer 输出；不提供合并为 lot 文件的选项。
 - 时间戳：CSV 用 ISO 8601（UTC）；STDF 用其标准时间格式。
 - 数值：CSV 使用点号小数；缺失值留空；`yield` 为 0–1 的分数、保留 6 位小数；STDF 使用标准 missing code。
@@ -570,6 +571,7 @@ V1 pattern catalog: `center-high`, `center-low`, `edge-high`, `edge-low`, `ring`
 - **WAT CSV**: one long CSV per lot, one row per wafer × site × item; site mm coordinates, test_num, item_id, value, unit, LSL/USL, pass, timestamp.
 - File naming: `{product}_{lot}_{phase}_{timestamp}.{ext}` for STDF and WAT CSV; `{product}_{lot}_{wafer}_CP_{timestamp}.csv` for CP CSV.
 - UTF-8 without BOM by default; optional BOM for Excel compatibility.
+- The `unit` column uses ASCII SI notation (`uA`, `um`, `ohm`, `ohm/sq`, `A/cm2`, `angstrom`, …); non-ASCII units in scenario overrides are rejected by validation.
 - CP CSV is always per wafer; there is no option to merge it into a lot file.
 - Timestamps: ISO 8601 (UTC) in CSV; STDF standard time format.
 - Numbers: dot decimal in CSV; empty cells for missing values; `yield` is a 0–1 fraction with six decimal places; standard STDF missing codes.

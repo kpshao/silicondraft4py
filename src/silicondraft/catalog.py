@@ -69,7 +69,7 @@ _GENERIC_CMOS_LOGIC_55NM: tuple[CatalogItem, ...] = (
         "WAT",
         1003,
         "NMOS saturation drive current",
-        "µA/µm",
+        "uA/um",
         550.0,
         480.0,
         620.0,
@@ -80,7 +80,7 @@ _GENERIC_CMOS_LOGIC_55NM: tuple[CatalogItem, ...] = (
         "WAT",
         1004,
         "PMOS saturation drive current",
-        "µA/µm",
+        "uA/um",
         250.0,
         210.0,
         290.0,
@@ -91,14 +91,14 @@ _GENERIC_CMOS_LOGIC_55NM: tuple[CatalogItem, ...] = (
         "WAT",
         1005,
         "NMOS off-state leakage",
-        "pA/µm",
+        "pA/um",
         100.0,
         None,
         1000.0,
         "lognormal",
     ),
     CatalogItem(
-        "WAT_IOFFP", "WAT", 1006, "PMOS off-state leakage", "pA/µm", 10.0, None, 500.0, "lognormal"
+        "WAT_IOFFP", "WAT", 1006, "PMOS off-state leakage", "pA/um", 10.0, None, 500.0, "lognormal"
     ),
     CatalogItem("WAT_SS", "WAT", 1007, "Subthreshold swing", "mV/dec", 85.0, None, 100.0, "normal"),
     CatalogItem(
@@ -113,22 +113,38 @@ _GENERIC_CMOS_LOGIC_55NM: tuple[CatalogItem, ...] = (
         "normal",
     ),
     CatalogItem(
-        "WAT_TOX", "WAT", 1009, "Equivalent gate oxide thickness", "Å", 22.0, 21.0, 23.0, "normal"
+        "WAT_TOX",
+        "WAT",
+        1009,
+        "Equivalent gate oxide thickness",
+        "angstrom",
+        22.0,
+        21.0,
+        23.0,
+        "normal",
     ),
     CatalogItem(
-        "WAT_RSHN", "WAT", 1010, "N+ diffusion sheet resistance", "Ω/sq", 8.0, 6.0, 10.0, "normal"
+        "WAT_RSHN", "WAT", 1010, "N+ diffusion sheet resistance", "ohm/sq", 8.0, 6.0, 10.0, "normal"
     ),
     CatalogItem(
-        "WAT_RSHP", "WAT", 1011, "P+ diffusion sheet resistance", "Ω/sq", 12.0, 9.0, 15.0, "normal"
+        "WAT_RSHP",
+        "WAT",
+        1011,
+        "P+ diffusion sheet resistance",
+        "ohm/sq",
+        12.0,
+        9.0,
+        15.0,
+        "normal",
     ),
-    CatalogItem("WAT_RC", "WAT", 1012, "Contact resistance", "Ω", 15.0, 8.0, 25.0, "normal"),
-    CatalogItem("WAT_RVIA", "WAT", 1013, "Via resistance", "Ω", 3.0, 1.5, 5.0, "normal"),
+    CatalogItem("WAT_RC", "WAT", 1012, "Contact resistance", "ohm", 15.0, 8.0, 25.0, "normal"),
+    CatalogItem("WAT_RVIA", "WAT", 1013, "Via resistance", "ohm", 3.0, 1.5, 5.0, "normal"),
     CatalogItem(
         "WAT_IGATE",
         "WAT",
         1014,
         "Gate leakage current density",
-        "A/cm²",
+        "A/cm2",
         1e-3,
         None,
         1e-2,
@@ -138,7 +154,15 @@ _GENERIC_CMOS_LOGIC_55NM: tuple[CatalogItem, ...] = (
         "WAT_VBD", "WAT", 1015, "Gate oxide breakdown voltage", "V", 5.0, 4.0, None, "normal"
     ),
     CatalogItem(
-        "CP_CONT", "CP", 2001, "Continuity / open-short resistance", "Ω", 5.0, None, 100.0, "normal"
+        "CP_CONT",
+        "CP",
+        2001,
+        "Continuity / open-short resistance",
+        "ohm",
+        5.0,
+        None,
+        100.0,
+        "normal",
     ),
     CatalogItem(
         "CP_FUNC", "CP", 2002, "Functional test pass flag", "", 1.0, None, None, "bernoulli"
@@ -147,14 +171,14 @@ _GENERIC_CMOS_LOGIC_55NM: tuple[CatalogItem, ...] = (
         "CP_SCAN", "CP", 2003, "Scan chain test pass flag", "", 1.0, None, None, "bernoulli"
     ),
     CatalogItem(
-        "CP_IDDQ", "CP", 2004, "Quiescent supply current", "µA", 2.0, None, 50.0, "lognormal"
+        "CP_IDDQ", "CP", 2004, "Quiescent supply current", "uA", 2.0, None, 50.0, "lognormal"
     ),
     CatalogItem("CP_VTHN", "CP", 2005, "NMOS threshold voltage", "V", 0.35, 0.28, 0.42, "normal"),
     CatalogItem(
         "CP_VTHP", "CP", 2006, "PMOS threshold voltage", "V", -0.35, -0.42, -0.28, "normal"
     ),
-    CatalogItem("CP_IONN", "CP", 2007, "NMOS drive current", "µA", 600.0, 500.0, None, "normal"),
-    CatalogItem("CP_IONP", "CP", 2008, "PMOS drive current", "µA", 250.0, 200.0, None, "normal"),
+    CatalogItem("CP_IONN", "CP", 2007, "NMOS drive current", "uA", 600.0, 500.0, None, "normal"),
+    CatalogItem("CP_IONP", "CP", 2008, "PMOS drive current", "uA", 250.0, 200.0, None, "normal"),
     CatalogItem(
         "CP_IOFFN", "CP", 2009, "NMOS off-state current", "nA", 1.0, None, 50.0, "lognormal"
     ),
@@ -165,13 +189,13 @@ _GENERIC_CMOS_LOGIC_55NM: tuple[CatalogItem, ...] = (
         "CP_IGATE", "CP", 2011, "Gate leakage current", "nA", 5.0, None, 100.0, "lognormal"
     ),
     CatalogItem(
-        "CP_IIL", "CP", 2012, "Input low leakage current", "µA", 0.01, None, 1.0, "lognormal"
+        "CP_IIL", "CP", 2012, "Input low leakage current", "uA", 0.01, None, 1.0, "lognormal"
     ),
     CatalogItem(
-        "CP_IIH", "CP", 2013, "Input high leakage current", "µA", 0.01, None, 1.0, "lognormal"
+        "CP_IIH", "CP", 2013, "Input high leakage current", "uA", 0.01, None, 1.0, "lognormal"
     ),
     CatalogItem(
-        "CP_IOZ", "CP", 2014, "Output tri-state leakage current", "µA", 0.05, None, 5.0, "lognormal"
+        "CP_IOZ", "CP", 2014, "Output tri-state leakage current", "uA", 0.05, None, 5.0, "lognormal"
     ),
     CatalogItem("CP_VIL", "CP", 2015, "Input low voltage", "V", 0.35, None, 0.54, "normal"),
     CatalogItem("CP_VIH", "CP", 2016, "Input high voltage", "V", 1.5, 1.26, None, "normal"),
@@ -180,7 +204,7 @@ _GENERIC_CMOS_LOGIC_55NM: tuple[CatalogItem, ...] = (
     CatalogItem(
         "CP_FRO", "CP", 2019, "Ring oscillator frequency", "MHz", 800.0, 700.0, 900.0, "normal"
     ),
-    CatalogItem("CP_RCONT", "CP", 2020, "Contact resistance", "Ω", 15.0, None, 30.0, "normal"),
+    CatalogItem("CP_RCONT", "CP", 2020, "Contact resistance", "ohm", 15.0, None, 30.0, "normal"),
     CatalogItem(
         "CP_VDDMIN", "CP", 2021, "Minimum operating voltage", "V", 0.9, None, 1.0, "normal"
     ),
@@ -263,6 +287,7 @@ def resolve_catalog(items: Items) -> CatalogResolution:
         else:
             item = _patch_item(existing, override, path, issues)
 
+        _check_ascii_unit(item, path, issues)
         by_id[item.id] = item
         _check_test_num_collision(item, by_id, path, issues)
 
@@ -362,6 +387,32 @@ def _patch_item(
 
     _check_spec_limits(updated, path, issues)
     return updated
+
+
+_ASCII_UNIT_REPLACEMENTS = {
+    "µ": "u",
+    "Ω": "ohm",
+    "Å": "angstrom",
+    "²": "2",
+}
+
+
+def _check_ascii_unit(item: CatalogItem, path: str, issues: list[ValidationIssue]) -> None:
+    if item.unit.isascii():
+        return
+    hint = item.unit
+    for source, replacement in _ASCII_UNIT_REPLACEMENTS.items():
+        hint = hint.replace(source, replacement)
+    suggestion = f"use '{hint}'" if hint.isascii() else "use ASCII unit notation"
+    issues.append(
+        ValidationIssue(
+            code="ITEM_UNIT_NOT_ASCII",
+            path=f"{path}.unit",
+            message=(
+                f"unit '{item.unit}' is not ASCII; {suggestion} (µ→u, Ω→ohm, Å→angstrom, ²→2)"
+            ),
+        )
+    )
 
 
 def _check_spec_limits(item: CatalogItem, path: str, issues: list[ValidationIssue]) -> None:

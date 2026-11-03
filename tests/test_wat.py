@@ -496,6 +496,7 @@ def test_export_writes_one_long_wat_csv_per_lot(tmp_path: Path) -> None:
                         float(wat_wafer.values[item.id][site_index]), rel=1e-9
                     )
                     assert row[8] == item.unit
+                    assert row[8].isascii()
                     assert (row[9] == "") is (item.lsl is None)
                     assert (row[10] == "") is (item.usl is None)
                     if item.lsl is not None:

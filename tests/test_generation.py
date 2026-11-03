@@ -296,6 +296,15 @@ def test_test_items_block_lists_every_enabled_cp_item(tmp_path: Path) -> None:
         assert row[6] == item.description
 
 
+def test_test_items_block_units_are_ascii(tmp_path: Path) -> None:
+    path, result = _single_csv(tmp_path)
+    _, blocks = _read_blocks(path)
+
+    units = [row[2] for row in blocks["[TEST_ITEMS]"][1:]]
+    assert units == [item.unit for item in result.items]
+    assert all(unit.isascii() for unit in units)
+
+
 def test_test_items_block_leaves_unbounded_limits_empty(tmp_path: Path) -> None:
     path, _ = _single_csv(tmp_path)
     _, blocks = _read_blocks(path)
