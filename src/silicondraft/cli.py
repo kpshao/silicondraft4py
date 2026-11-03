@@ -40,7 +40,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     subparsers = parser.add_subparsers(dest="command", metavar="COMMAND")
 
-    generate_parser = subparsers.add_parser("generate", help="generate data and write CP CSV")
+    generate_parser = subparsers.add_parser("generate", help="generate data and write CSV")
     generate_parser.add_argument(
         "-c",
         "--config",
@@ -118,6 +118,12 @@ def _generate(scenario_path: Path, output_dir: Path) -> int:
     dies = sum(wafer.die_count for lot in result.lots for wafer in lot.wafers)
     print(f"scenario: OK ({scenario_path})")
     print(f"generated: {len(result.lots)} lot(s), {wafers} wafer(s), {dies} die(s)")
+    for entry in result.linkage_report:
+        print(
+            f"linkage: {entry.wat_item} -> {entry.cp_item} factor={entry.factor} "
+            f"target_r={entry.target_r:.3f} achieved_r={entry.achieved_r:.3f} "
+            f"observed_r={entry.observed_r:.3f}"
+        )
     for path in paths:
         print(f"exported: {path}")
     return 0

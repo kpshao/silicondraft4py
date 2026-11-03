@@ -35,6 +35,7 @@ class CPWafer:
     soft_bin: IntArray
     passed: BoolArray
     values: Mapping[str, FloatArray]
+    tested_at: datetime
 
     @property
     def die_count(self) -> int:
@@ -86,14 +87,61 @@ class CPLot:
 
 
 @dataclass(frozen=True, slots=True)
+class WatWafer:
+    """WAT measurements for one wafer: one row per PCM site."""
+
+    wafer_id: str
+    site_number: IntArray
+    x_mm: FloatArray
+    y_mm: FloatArray
+    values: Mapping[str, FloatArray]
+    tested_at: datetime
+
+    @property
+    def site_count(self) -> int:
+        """Number of WAT sites measured on this wafer."""
+        return int(self.x_mm.size)
+
+
+@dataclass(frozen=True, slots=True)
+class WatLot:
+    """WAT measurements for one lot."""
+
+    lot_id: str
+    wafers: tuple[WatWafer, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class LinkageReportEntry:
+    """Target and achieved correlation for one WAT/CP linkage pair.
+
+    ``achieved_r`` is the correlation implied by the calibrated latent model;
+    ``observed_r`` is the Pearson correlation of the generated WAT site values
+    against the CP values of their nearest dies.
+    """
+
+    wat_item: str
+    cp_item: str
+    factor: str
+    target_r: float
+    achieved_r: float
+    observed_r: float
+    sample_count: int
+
+
+@dataclass(frozen=True, slots=True)
 class GenerationResult:
     """The output of one generation run.
 
     ``items`` holds the enabled CP items in catalog order; ``CPWafer.values``
-    maps each item ID to its per-die measurement column.
+    maps each item ID to its per-die measurement column. ``wat_items`` and
+    ``wat_lots`` are the WAT counterparts, measured per PCM site.
     """
 
     scenario: Scenario
     items: tuple[CatalogItem, ...]
+    wat_items: tuple[CatalogItem, ...]
     lots: tuple[CPLot, ...]
+    wat_lots: tuple[WatLot, ...]
+    linkage_report: tuple[LinkageReportEntry, ...]
     generated_at: datetime

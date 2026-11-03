@@ -114,6 +114,8 @@ def _write_tiny_scenario(tmp_path: Path) -> Path:
         "  name: GEN55LOGIC\n"
         "lots:\n"
         "  wafers_per_lot: 1\n"
+        "export:\n"
+        "  wat_csv: false\n"
         "seed: 20260105\n",
         encoding="utf-8",
     )
@@ -156,6 +158,24 @@ def test_generate_writes_multiblock_cp_csv_and_exits_zero(
     assert "lot_id" not in rows[data_start + 1]
     assert "wafer_id" not in rows[data_start + 1]
     assert len(rows) - (data_start + 2) == 2700
+
+
+def test_generate_prints_the_linkage_report(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    scenario_path = _write_tiny_scenario(tmp_path)
+
+    exit_code = main(["generate", "-c", str(scenario_path), "-o", str(tmp_path / "out")])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert captured.err == ""
+    lines = [line for line in captured.out.splitlines() if line.startswith("linkage: ")]
+    assert len(lines) == 28
+    vtn_pair = next(line for line in lines if "WAT_VTN -> CP_VTHN" in line)
+    assert "target_r=0.800" in vtn_pair
+    assert "achieved_r=" in vtn_pair
+    assert "observed_r=" in vtn_pair
 
 
 def test_generate_maps_export_failures_to_exit_three(

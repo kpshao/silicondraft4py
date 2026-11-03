@@ -185,17 +185,21 @@ def soft_bin_for_item(item: CatalogItem) -> int:
 
 
 def _item_failed(item: CatalogItem, column: FloatArray) -> BoolArray:
-    failed = out_of_spec(column, item)
+    return ~item_passed(item, column)
+
+
+def item_passed(item: CatalogItem, column: FloatArray) -> BoolArray:
+    """Return a mask of measurements that satisfy the item's pass rule.
+
+    Bernoulli items pass when the measured flag is non-zero; other items pass
+    when every configured spec limit is satisfied.
+    """
     if item.distribution == "bernoulli":
-        failed |= column == 0
-    return failed
-
-
-def out_of_spec(column: FloatArray, item: CatalogItem) -> BoolArray:
-    """Return a mask of values outside the item's spec limits."""
-    failed = np.zeros(column.shape, dtype=np.bool_)
+        bernoulli_passed: BoolArray = column != 0
+        return bernoulli_passed
+    passed = np.ones(column.shape, dtype=np.bool_)
     if item.lsl is not None:
-        failed |= column < item.lsl
+        passed &= column >= item.lsl
     if item.usl is not None:
-        failed |= column > item.usl
-    return failed
+        passed &= column <= item.usl
+    return passed

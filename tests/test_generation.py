@@ -73,8 +73,9 @@ def _write_scenario(
                 f"      usl: {cp_vthn_usl}",
             ]
         )
+    lines.extend(["export:", "  wat_csv: false"])
     if encoding is not None:
-        lines.extend(["export:", f"  encoding: {encoding}"])
+        lines.append(f"  encoding: {encoding}")
     lines.append("seed: 20260105")
     path = tmp_path / "tiny.yaml"
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
