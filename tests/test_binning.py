@@ -22,6 +22,7 @@ def _write_scenario(
         "schema_version": 1,
         "product": {"name": "GEN55LOGIC"},
         "lots": {"wafers_per_lot": wafers_per_lot},
+        "export": {"wat_csv": False},
         "seed": seed,
     }
     if overrides is not None:
@@ -217,6 +218,18 @@ def test_bin_precedence_follows_hard_then_soft_severity(
     assert not wafer.passed.any()
     assert np.all(wafer.hard_bin == expected_hard)
     assert np.all(wafer.soft_bin == expected_soft)
+
+
+def test_bernoulli_items_still_respect_configured_spec_limits(tmp_path: Path) -> None:
+    result, _ = _generate(
+        tmp_path,
+        overrides=[{"id": "CP_FUNC", "typical": 1.0, "usl": 0.5}],
+    )
+    wafer = result.lots[0].wafers[0]
+
+    assert not wafer.passed.any()
+    assert np.all(wafer.hard_bin == 3)
+    assert np.all(wafer.soft_bin == 206)
 
 
 def test_lot_wafer_and_die_yield_summaries_are_computed_and_emitted(tmp_path: Path) -> None:

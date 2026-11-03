@@ -11,8 +11,8 @@ from importlib.metadata import version as package_version
 from pathlib import Path
 from typing import Protocol
 
-from ..binning import HARD_BIN_DEFINITIONS, SOFT_BIN_DEFINITIONS
-from ..dataset import CPLot, CPWafer, GenerationResult
+from ..binning import HARD_BIN_DEFINITIONS, SOFT_BIN_DEFINITIONS, item_passed
+from ..dataset import CPLot, CPWafer, GenerationResult, WatLot
 from ..scenario.models import Scenario
 
 CSV_FORMAT_VERSION = "2"
@@ -39,6 +39,22 @@ _TEST_DATA_PREFIX = (
     "hard_bin",
     "soft_bin",
     "pass",
+)
+
+_WAT_HEADER = (
+    "lot_id",
+    "wafer_id",
+    "wat_site",
+    "site_x_mm",
+    "site_y_mm",
+    "test_num",
+    "item_id",
+    "value",
+    "unit",
+    "lsl",
+    "usl",
+    "pass",
+    "timestamp",
 )
 
 _UNSAFE_FILENAME_CHARS = re.compile(r"[^A-Za-z0-9_.-]+")
@@ -71,6 +87,59 @@ def export_cp_csv(result: GenerationResult, out_dir: Path) -> tuple[Path, ...]:
             _write_wafer(path, lot, wafer, result, scenario_hash, encoding)
             paths.append(path)
     return tuple(paths)
+
+
+def export_wat_csv(result: GenerationResult, out_dir: Path) -> tuple[Path, ...]:
+    """Write one long WAT CSV per lot and return the written paths.
+
+    The file name is ``{product}_{lot}_WAT_{timestamp}.csv``; each row is one
+    wafer x site x item measurement.
+    """
+    out_dir.mkdir(parents=True, exist_ok=True)
+    encoding = result.scenario.export.encoding
+    timestamp = _timestamp_token(result.generated_at)
+    product = _safe_filename_part(result.scenario.product.name)
+    paths: list[Path] = []
+    for lot in result.wat_lots:
+        lot_part = _safe_filename_part(lot.lot_id)
+        path = out_dir / f"{product}_{lot_part}_WAT_{timestamp}.csv"
+        _write_wat_lot(path, lot, result, encoding)
+        paths.append(path)
+    return tuple(paths)
+
+
+def _write_wat_lot(
+    path: Path,
+    lot: WatLot,
+    result: GenerationResult,
+    encoding: str,
+) -> None:
+    with path.open("w", encoding=encoding, newline="") as stream:
+        writer = csv.writer(stream, lineterminator="\n")
+        writer.writerow(_WAT_HEADER)
+        for wafer in lot.wafers:
+            passed = {
+                item.id: item_passed(item, wafer.values[item.id]) for item in result.wat_items
+            }
+            for site_index in range(wafer.site_count):
+                for item in result.wat_items:
+                    writer.writerow(
+                        (
+                            lot.lot_id,
+                            wafer.wafer_id,
+                            int(wafer.site_number[site_index]),
+                            _format_float(float(wafer.x_mm[site_index])),
+                            _format_float(float(wafer.y_mm[site_index])),
+                            item.test_num,
+                            item.id,
+                            _format_float(float(wafer.values[item.id][site_index])),
+                            item.unit,
+                            _format_optional_float(item.lsl),
+                            _format_optional_float(item.usl),
+                            int(passed[item.id][site_index]),
+                            _format_timestamp(wafer.tested_at),
+                        )
+                    )
 
 
 def _write_wafer(

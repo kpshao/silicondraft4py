@@ -177,6 +177,20 @@ def layout_wat_sites(wafer: Wafer) -> WatSiteLayout:
     )
 
 
+def nearest_die_indices(wat_sites: WatSiteLayout, dies: DieLayout) -> IntArray:
+    """Return the index of the nearest die for every WAT site.
+
+    A WAT site samples the latent factor vector of its nearest die, modelling
+    local process conditions at the PCM structure. Ties resolve to the first
+    die in layout order.
+    """
+    if dies.count == 0:
+        return np.empty(0, dtype=np.int64)
+    dx = wat_sites.x_mm[:, np.newaxis] - dies.x_mm[np.newaxis, :]
+    dy = wat_sites.y_mm[:, np.newaxis] - dies.y_mm[np.newaxis, :]
+    return np.argmin(dx * dx + dy * dy, axis=1).astype(np.int64)
+
+
 def _empty_layout() -> DieLayout:
     return DieLayout(
         x_mm=np.empty(0, dtype=np.float64),

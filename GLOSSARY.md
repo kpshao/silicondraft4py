@@ -72,6 +72,14 @@ _Avoid_：hidden variable、共享变量
 相关测试项在不同测试阶段之间呈现的统计依赖（V1：WAT↔CP）；由共享潜在工艺因子产生，而不是直接给相关系数赋值。
 _Avoid_：correlation（correlation 是可观测结果，不是生成关系）
 
+**Achieved correlation（达成相关系数）**：
+标定后的 latent 模型对一对 WAT↔CP 测试项隐含的总体 Pearson 相关系数；生成报告据此对照目标 r 与容差。
+_Avoid_：target correlation（那是配置输入）
+
+**Observed correlation（观测相关系数）**：
+按 WAT 站点与最近 die 配对、从一次生成的数据中计算的样本 Pearson 相关系数；随 wafer 与站点数波动。
+_Avoid_：actual correlation（语义模糊）
+
 **Ground truth manifest（真值清单）**：
 生成器输出的机器可读记录，描述其注入的意图真相：空间模式、潜在因子、目标相关系数与每颗 die 的真实 pass/fail；用于评估 YMS 的检测与相关性结果。
 _Avoid_：report、结果报告（过于宽泛）
@@ -182,6 +190,14 @@ _Avoid_: hidden variable, shared variable
 **Linkage**:
 The statistical dependence between related test items across test phases (WAT↔CP in V1), produced by shared latent process factors rather than by directly assigning correlation coefficients.
 _Avoid_: correlation (correlation is an observed result, not the generative relationship)
+
+**Achieved correlation**:
+The population Pearson correlation implied by the calibrated latent model for a WAT↔CP item pair; the generation report compares it with the target r and tolerance.
+_Avoid_: target correlation (that is the configuration input)
+
+**Observed correlation**:
+The sample Pearson correlation computed from one generation run's data, pairing WAT sites with their nearest die; it fluctuates with the wafer and site counts.
+_Avoid_: actual correlation (ambiguous)
 
 **Ground truth manifest**:
 A machine-readable record of the generator's intended truths — injected spatial patterns, latent factors, target correlations, and per-die pass/fail — used to evaluate a YMS's detection and correlation results.

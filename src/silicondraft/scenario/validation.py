@@ -7,8 +7,18 @@ from string import Formatter
 from ..catalog import Catalog, resolve_catalog
 from ..errors import ScenarioError, ValidationIssue
 from ..geometry import count_dies
+from ..latent import DEFAULT_LINKAGE_ITEM_IDS, LINKABLE_DISTRIBUTIONS, WAT_FACTOR
 from .loader import parse_scenario, read_scenario_data
-from .models import ExportOptions, Linkage, Lots, Pattern, Scenario, TestPhase, Wafer
+from .models import (
+    ExportOptions,
+    Items,
+    Linkage,
+    Lots,
+    Pattern,
+    Scenario,
+    TestPhase,
+    Wafer,
+)
 
 _REQUIRED_PATTERN_EXTENTS: dict[str, tuple[str, ...]] = {
     "center_high": ("radius_mm",),
@@ -87,6 +97,7 @@ def validate_scenario_model(scenario: Scenario) -> ValidationResult:
     issues.extend(_validate_lots(scenario.lots))
     issues.extend(_validate_patterns(scenario.patterns, resolution.catalog))
     issues.extend(_validate_linkage(scenario.linkage, resolution.catalog))
+    issues.extend(_validate_item_overrides_linkage(scenario.items))
     issues.extend(_validate_export(scenario.export))
 
     if issues:
@@ -285,6 +296,49 @@ def _validate_linkage(linkage: Linkage, catalog: Catalog) -> list[ValidationIssu
         path = f"linkage.overrides[{index}]"
         issues.extend(_validate_item_reference(override.wat, f"{path}.wat", "WAT", catalog))
         issues.extend(_validate_item_reference(override.cp, f"{path}.cp", "CP", catalog))
+        wat_item = catalog.get(override.wat)
+        cp_item = catalog.get(override.cp)
+        if (
+            wat_item is not None
+            and wat_item.phase == "WAT"
+            and wat_item.distribution not in LINKABLE_DISTRIBUTIONS
+        ):
+            issues.append(
+                ValidationIssue(
+                    code="LINKAGE_UNSUPPORTED_DISTRIBUTION",
+                    path=f"{path}.wat",
+                    message=(
+                        f"cannot link WAT item '{override.wat}' with distribution "
+                        f"'{wat_item.distribution}'; linkage supports normal and lognormal items"
+                    ),
+                )
+            )
+        if (
+            cp_item is not None
+            and cp_item.phase == "CP"
+            and cp_item.distribution not in LINKABLE_DISTRIBUTIONS
+        ):
+            issues.append(
+                ValidationIssue(
+                    code="LINKAGE_UNSUPPORTED_DISTRIBUTION",
+                    path=f"{path}.cp",
+                    message=(
+                        f"cannot link CP item '{override.cp}' with distribution "
+                        f"'{cp_item.distribution}'; linkage supports normal and lognormal items"
+                    ),
+                )
+            )
+        if wat_item is not None and wat_item.phase == "WAT" and override.wat not in WAT_FACTOR:
+            issues.append(
+                ValidationIssue(
+                    code="LINKAGE_UNSUPPORTED_WAT_ITEM",
+                    path=f"{path}.wat",
+                    message=(
+                        f"WAT item '{override.wat}' has no primary latent factor; "
+                        "custom WAT items cannot be linked"
+                    ),
+                )
+            )
         pair = (override.wat, override.cp)
         if pair in seen_pairs:
             issues.append(
@@ -299,6 +353,34 @@ def _validate_linkage(linkage: Linkage, catalog: Catalog) -> list[ValidationIssu
             )
         else:
             seen_pairs.add(pair)
+    return issues
+
+
+def _validate_item_overrides_linkage(items: Items) -> list[ValidationIssue]:
+    """Reject distribution changes that would silently drop default linkage pairs.
+
+    Disabling or removing a linked item is an explicit way to drop its pairs;
+    changing it to a distribution that cannot participate in linkage is not.
+    """
+    issues: list[ValidationIssue] = []
+    for index, override in enumerate(items.overrides):
+        if override.remove or override.enabled is False:
+            continue
+        if override.distribution is None or override.distribution in LINKABLE_DISTRIBUTIONS:
+            continue
+        if override.id not in DEFAULT_LINKAGE_ITEM_IDS:
+            continue
+        issues.append(
+            ValidationIssue(
+                code="LINKAGE_UNSUPPORTED_DISTRIBUTION",
+                path=f"items.overrides[{index}].distribution",
+                message=(
+                    f"changing item '{override.id}' to distribution "
+                    f"'{override.distribution}' would drop its default linkage pairs; "
+                    "remove or disable the item instead"
+                ),
+            )
+        )
     return issues
 
 

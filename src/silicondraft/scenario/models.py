@@ -66,7 +66,7 @@ class Lots(_StrictModel):
     lot_id_template: str = "{product}-L{lot:03d}"
     wafer_id_template: str = "W{wafer:02d}"
     start_date: datetime | None = None
-    wat_to_cp_gap_min: NonNegativeFloat = 120.0
+    wat_to_cp_gap_min: PositiveFloat = 120.0
     cp_duration_min_per_wafer: PositiveFloat = 45.0
     lot_interval_hours: NonNegativeFloat = 168.0
 
