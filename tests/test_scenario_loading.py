@@ -29,6 +29,12 @@ def test_minimal_scenario_loads_with_defaults(tmp_path: Path) -> None:
     assert scenario.items.preset == "generic_cmos_logic_55nm"
     assert scenario.items.overrides == []
     assert scenario.patterns == []
+    assert scenario.defects.enabled is True
+    assert scenario.defects.model == "clustered"
+    assert scenario.defects.failure_rate == 0.01
+    assert scenario.defects.cluster_size == 8
+    assert scenario.defects.cluster_radius_mm == 10.0
+    assert scenario.defects.target_items == ["CP_FUNC", "CP_SCAN"]
     assert scenario.linkage.overrides == []
     assert scenario.export.cp_stdf is True
     assert scenario.export.cp_csv is True

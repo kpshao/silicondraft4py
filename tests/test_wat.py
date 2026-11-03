@@ -66,8 +66,13 @@ def _write_scenario(
         document["linkage"] = {"overrides": linkage_overrides}
     if item_overrides is not None:
         document["items"] = {"overrides": item_overrides}
+    export_options: dict[str, Any] = {
+        "ground_truth": False,
+        "include_die_truth": False,
+    }
     if export is not None:
-        document["export"] = export
+        export_options.update(export)
+    document["export"] = export_options
     path = tmp_path / "scenario.yaml"
     path.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
     return path

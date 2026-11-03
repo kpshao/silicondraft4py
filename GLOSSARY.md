@@ -64,6 +64,10 @@ _Avoid_：defect pattern、缺陷（在指代该类模式时）
 由颗粒或工艺缺陷导致的、位置随机且带空间聚集性的单 die 失效；区别于系统性空间模式。
 _Avoid_：缺陷特征（语义模糊）
 
+**Defect cluster（缺陷簇）**：
+在空间上聚集的一组随机缺陷失效 die，由簇心、半径与成员 die 描述；其位置进入 ground truth。
+_Avoid_：defect blob
+
 **Latent process factor（潜在工艺因子）**：
 一个不可直接观测的工艺特性（如阈值电压、迁移率、接触电阻），被 WAT 与 CP 测量项共同反映；它是跨阶段联动的共同原因。
 _Avoid_：hidden variable、共享变量
@@ -83,6 +87,14 @@ _Avoid_：actual correlation（语义模糊）
 **Ground truth manifest（真值清单）**：
 生成器输出的机器可读记录，描述其注入的意图真相：空间模式、潜在因子、目标相关系数与每颗 die 的真实 pass/fail；用于评估 YMS 的检测与相关性结果。
 _Avoid_：report、结果报告（过于宽泛）
+
+**Pattern ID（模式标识）**：
+ground truth 中注入模式的稳定标识（`pattern_1`、`pattern_2`…），用于把每 die 真值与模式清单 join；同一 die 命中多个模式时以 `|` 分隔。
+_Avoid_：pattern name
+
+**Outlier wafer（异常 wafer）**：
+被 wafer 级（`scope: wafer`）空间模式选中的单张异常 wafer；manifest 记录其 lot/wafer 与命中的模式。
+_Avoid_：bad wafer
 
 **Wafer map（晶圆图）**：
 把 die 级结果按 wafer 坐标进行的空间可视化。
@@ -183,6 +195,10 @@ _Avoid_: defect pattern, defect (when referring to this class of pattern)
 A die failure caused by particles or process defects, located stochastically and spatially clustered; distinct from a systematic spatial pattern.
 _Avoid_: defect feature (ambiguous)
 
+**Defect cluster**:
+A spatially concentrated group of random-defect failure dies, described by a centre, radius, and member dies; its locations enter ground truth.
+_Avoid_: defect blob
+
 **Latent process factor**:
 An unobserved process characteristic (e.g., threshold voltage, mobility, contact resistance) reflected jointly by WAT and CP measurements; the common cause of cross-stage linkage.
 _Avoid_: hidden variable, shared variable
@@ -202,6 +218,14 @@ _Avoid_: actual correlation (ambiguous)
 **Ground truth manifest**:
 A machine-readable record of the generator's intended truths — injected spatial patterns, latent factors, target correlations, and per-die pass/fail — used to evaluate a YMS's detection and correlation results.
 _Avoid_: report (too broad)
+
+**Pattern ID**:
+A stable identifier for an injected spatial pattern in ground truth (`pattern_1`, `pattern_2`, …), used to join per-die truth to the pattern manifest; multiple hits on one die are separated by `|`.
+_Avoid_: pattern name
+
+**Outlier wafer**:
+The single excursion wafer selected by a wafer-scoped (`scope: wafer`) spatial pattern; the manifest records its lot/wafer and the patterns that hit it.
+_Avoid_: bad wafer
 
 **Wafer map**:
 A spatial visualization of die-level results on a wafer.

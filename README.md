@@ -4,7 +4,7 @@
 
 SiliconDraft 是一个 scenario（场景）驱动的合成 CP/WAT 测试数据生成器，用于验证良率管理系统（YMS）的数据导入、良率/bin 分析、wafer map、SPC 与相关性分析。V1 覆盖 CP 与 WAT；FT 计划于 V2 支持。
 
-当前处于 V1 开发早期：项目骨架、scenario v1 schema、结构/语义校验与 `validate` / `schema` / `version` CLI 已完成；CP 生成与 CP CSV 导出（`generate`）已接入，包含 21 个 CP 测试项、hard/soft bin、由 spec limits 推导的 pass/fail、lot/wafer/die 良率汇总与 hard/soft bin Pareto，CSV 采用 [ADR-0005](docs/adr/0005-cp-csv-multiblock-layout.md) 的每 wafer 一个文件、四块布局。WAT 生成与 WAT long CSV、六个 latent process factor 的 lot/wafer/die 分解、WAT↔CP 灵敏度联动、目标相关系数校准与生成报告也已接入（见 [ADR-0006](docs/adr/0006-wat-site-pairing-and-correlation-report.md)）。系统性空间模式与随机缺陷（含 `CP_FUNC`/`CP_SCAN` 默认失败率）、STDF、ground truth 与 GUI 仍在后续里程碑。
+当前处于 V1 开发早期：项目骨架、scenario v1 schema、结构/语义校验与 `validate` / `schema` / `version` CLI 已完成；CP 生成与 CP CSV 导出（`generate`）已接入，包含 21 个 CP 测试项、hard/soft bin、由 spec limits 推导的 pass/fail、lot/wafer/die 良率汇总与 hard/soft bin Pareto，CSV 采用 [ADR-0005](docs/adr/0005-cp-csv-multiblock-layout.md) 的每 wafer 一个文件、四块布局。WAT 生成与 WAT long CSV、六个 latent process factor 的 lot/wafer/die 分解、WAT↔CP 灵敏度联动、目标相关系数校准与生成报告也已接入（见 [ADR-0006](docs/adr/0006-wat-site-pairing-and-correlation-report.md)）。系统性空间模式、带簇聚的随机缺陷与 ground truth（JSON manifest + 每 die CSV.GZ）已接入（见 [ADR-0007](docs/adr/0007-patterns-defects-and-groundtruth.md)）；STDF 与 GUI 仍在后续里程碑。
 
 ## 安装
 
@@ -48,7 +48,7 @@ uv run silicondraft generate -c scenario.yaml -o out/
 
 生成只接受通过校验的 scenario。每片 wafer 一个 CSV，文件内依次包含 `[METADATA]`、`[TEST_ITEMS]`、`[BIN_DEFINITIONS]` 与 `[TEST_DATA]` 四个块；`[TEST_DATA]` 每行一颗 die，包含 mm 与 grid 坐标、test site、hard bin、soft bin、pass 以及每个启用的 CP 测试项一列，不再重复 `lot_id`/`wafer_id`。`[BIN_DEFINITIONS]` 同时输出 hard bin 与 soft bin 定义，soft bin 通过 `hard_bin` 列映射到 hard bin。同一 scenario + seed 生成的数据一致（`generated_at` 与文件名时间戳除外）。
 
-导出同时支持 CP CSV 与 WAT CSV，分别由 `export.cp_csv` / `export.wat_csv` 控制，并遵循 `export.encoding`；STDF 与 ground-truth 导出选项尚未接入，`patterns` 也尚未应用。`linkage` 已接入生成流程。
+导出同时支持 CP CSV、WAT CSV 与 ground truth，分别由 `export.cp_csv` / `export.wat_csv` / `export.ground_truth` 控制；前两者遵循 `export.encoding`。`patterns`、`defects` 与 `linkage` 均已接入生成流程；STDF 尚未接入。
 
 #### CP CSV 布局
 
@@ -102,6 +102,46 @@ linkage: WAT_VTN -> CP_VTHN factor=F_VT target_r=0.800 achieved_r=0.800 observed
 
 容差为 `target_r ≥ 0.5` 时绝对误差 ≤ 0.05，否则 ≤ 0.08；该容差针对 `achieved_r`。`observed_r` 是有限样本估计，规模越小波动越大：默认 1 lot × 25 wafers × 9 sites 只有 225 个配对，样本 r 无法稳定满足该容差；要验证生成数据本身，请使用足够大的场景（例如 10 lots × 25 wafers × 21 sites）。Python API 通过 `GenerationResult.wat_items`、`GenerationResult.wat_lots` 与 `GenerationResult.linkage_report` 暴露相同数据。
 
+#### 空间模式、随机缺陷与 ground truth
+
+`patterns` 支持 `center_high`、`center_low`、`edge_high`、`edge_low`、`ring`、`radial_gradient`、`local_spot`。每个模式可作用于 `yield` 和/或指定 CP item；`scope: lot` 作用于 lot 内所有 wafer，`scope: wafer` 在每个 lot 只作用于一张由 seed 确定的 wafer；多个模式按顺序叠加。模式只修改测量值，bin 始终由 spec limits 与 bin 规则推导。
+
+```yaml
+patterns:
+  - kind: edge_low
+    scope: lot
+    target: yield
+    amplitude: 0.35
+    extent_mm: 25.0
+  - kind: center_high
+    target_item: CP_FRO
+    amplitude: 0.05
+    radius_mm: 40.0
+  - kind: local_spot
+    scope: wafer
+    target: yield
+    amplitude: -0.90
+    radius_mm: 15.0
+    center_mm: [40.0, -20.0]
+
+defects:
+  model: clustered        # 或 poisson
+  failure_rate: 0.01      # CP_FUNC/CP_SCAN 期望总失败率
+  cluster_size: 8         # 每个缺陷簇的期望失效 die 数
+  cluster_radius_mm: 10.0
+  target_items: [CP_FUNC, CP_SCAN]
+```
+
+yield 模式通过让 `CP_FUNC`（或 `CP_SCAN`）失败来降低良率；正幅度的 `center_high` / `edge_high` 通过降低随机缺陷失败概率体现。item 模式按相对 typical 的比例平移测量值；`ring`、`radial_gradient`、`local_spot` 的幅度可正可负。随机缺陷默认使用簇聚模型（高斯簇强度场 + 负二项缺陷计数），`failure_rate` 是所有 `target_items` 合计的 die 级期望失败率。
+
+`export.ground_truth` 默认开启：每次生成运行输出一个 JSON manifest（`{product}_ground_truth_{timestamp}.json`），并为每个 lot 默认生成一个每 die 真值文件（`{product}_{lot}_die_truth_{timestamp}.csv.gz`）。manifest 包含完整 scenario 与 `scenario_sha256`、seed、每 lot/wafer 良率、latent factor 均值、模式清单与各自贡献、随机缺陷簇、联动目标/达成 r、outlier wafer 以及 die 真值文件名。die 真值包含 `true_pass`、true hard/soft bin、六个 latent factor 与 `pattern_ids`（以 `|` 分隔）。`--no-die-truth` 只关闭每 die 文件，manifest 仍写出；`export.ground_truth: false` 关闭整个 ground truth。
+
+示例场景 [examples/patterns.yaml](examples/patterns.yaml) 同时注入 edge-low 良率模式、center-high item 模式、单 wafer local-spot 与默认随机缺陷：
+
+```bash
+uv run silicondraft generate -c examples/patterns.yaml -o out/
+```
+
 校验一个 scenario 文件。合法配置返回 0，并打印 die 数、item 数等摘要；非法配置返回 1，并给出可定位的字段路径与错误码：
 
 ```bash
@@ -143,10 +183,13 @@ if not result.ok:
 
 scenario = load_scenario("scenario.yaml")  # 结构 + 语义校验通过后返回类型化场景
 generated = generate(scenario)  # 返回 GenerationResult
-paths = export(generated, out_dir="out")  # 按 export 选项写出 CP/WAT CSV
+paths = export(generated, out_dir="out")  # 按 export 选项写出 CSV 与 ground truth
+paths = export(generated, out_dir="out", include_die_truth=False)  # 覆盖每 die 真值开关
 
 for entry in generated.linkage_report:
     print(entry.wat_item, entry.cp_item, entry.target_r, entry.achieved_r)
+for report in generated.pattern_reports:
+    print(report.pattern_id, report.realized_failures, report.item_shift_sum)
 ```
 
 ## 开发
@@ -178,7 +221,7 @@ MIT，见 [LICENSE](LICENSE)。
 
 SiliconDraft is a scenario-driven synthetic CP/WAT test data generator for validating yield management system (YMS) functions such as data import, yield/bin analysis, wafer maps, SPC, and correlation analysis. V1 covers CP and WAT; FT is planned for V2.
 
-The project is in early V1 development: the project skeleton, scenario v1 schema, structural/semantic validation, and the `validate` / `schema` / `version` CLI are in place, along with CP generation and CP CSV export (`generate`). Generation now covers all 21 CP test items, hard/soft bins, pass/fail derived from spec limits, lot/wafer/die yield summaries, and hard/soft-bin Pareto; CP CSV uses the per-wafer, four-block layout set by [ADR-0005](docs/adr/0005-cp-csv-multiblock-layout.md). WAT generation with a long CSV, the lot/wafer/die decomposition of six latent process factors, WAT↔CP sensitivity linkage, target-correlation calibration, and the generation report are also in place (see [ADR-0006](docs/adr/0006-wat-site-pairing-and-correlation-report.md)). Systematic spatial patterns and random defects (including the default `CP_FUNC`/`CP_SCAN` failure rate), STDF, ground truth, and the GUI arrive in later milestones.
+The project is in early V1 development: the project skeleton, scenario v1 schema, structural/semantic validation, and the `validate` / `schema` / `version` CLI are in place, along with CP generation and CP CSV export (`generate`). Generation now covers all 21 CP test items, hard/soft bins, pass/fail derived from spec limits, lot/wafer/die yield summaries, and hard/soft-bin Pareto; CP CSV uses the per-wafer, four-block layout set by [ADR-0005](docs/adr/0005-cp-csv-multiblock-layout.md). WAT generation with a long CSV, the lot/wafer/die decomposition of six latent process factors, WAT↔CP sensitivity linkage, target-correlation calibration, and the generation report are also in place (see [ADR-0006](docs/adr/0006-wat-site-pairing-and-correlation-report.md)). Systematic spatial patterns, clustered random defects, and ground truth (a JSON manifest plus per-die CSV.GZ) are in place too (see [ADR-0007](docs/adr/0007-patterns-defects-and-groundtruth.md)); STDF and the GUI arrive in later milestones.
 
 ## Install
 
@@ -222,7 +265,7 @@ uv run silicondraft generate -c scenario.yaml -o out/
 
 Generation only accepts a scenario that passes validation. Each wafer gets its own CSV, containing `[METADATA]`, `[TEST_ITEMS]`, `[BIN_DEFINITIONS]`, and `[TEST_DATA]` in that order; `[TEST_DATA]` has one row per die with mm and grid coordinates, test site, hard bin, soft bin, pass, and one column per enabled CP test item, and no longer repeats `lot_id`/`wafer_id`. `[BIN_DEFINITIONS]` emits both hard- and soft-bin definitions, with soft bins mapping to hard bins through the `hard_bin` column. The same scenario + seed produces identical data (excluding `generated_at` and the timestamp in the file name).
 
-Export covers both CP CSV and WAT CSV, controlled by `export.cp_csv` / `export.wat_csv` and honouring `export.encoding`; the STDF and ground-truth export options are not wired up yet, and `patterns` is not applied. `linkage` is part of generation.
+Export covers CP CSV, WAT CSV, and ground truth, controlled by `export.cp_csv` / `export.wat_csv` / `export.ground_truth`; the first two honour `export.encoding`. `patterns`, `defects`, and `linkage` are all part of generation; STDF is not wired up yet.
 
 #### CP CSV layout
 
@@ -276,6 +319,46 @@ linkage: WAT_VTN -> CP_VTHN factor=F_VT target_r=0.800 achieved_r=0.800 observed
 
 The tolerance is an absolute error ≤ 0.05 when `target_r >= 0.5`, otherwise ≤ 0.08; it applies to `achieved_r`. `observed_r` is a finite-sample estimate and varies more in smaller runs: the schema default of 1 lot × 25 wafers × 9 sites provides only 225 pairs, where the sample r cannot reliably meet that tolerance. To verify the generated data itself, use a large enough scenario (for example 10 lots × 25 wafers × 21 sites). The Python API exposes the same data through `GenerationResult.wat_items`, `GenerationResult.wat_lots`, and `GenerationResult.linkage_report`.
 
+#### Spatial patterns, random defects, and ground truth
+
+`patterns` supports `center_high`, `center_low`, `edge_high`, `edge_low`, `ring`, `radial_gradient`, and `local_spot`. Each pattern targets `yield` and/or a selected CP item; `scope: lot` applies to every wafer in the lot, while `scope: wafer` applies to one seed-selected wafer per lot; multiple patterns compose in order. Patterns only modify measurement values, so bins are always derived from spec limits and bin rules.
+
+```yaml
+patterns:
+  - kind: edge_low
+    scope: lot
+    target: yield
+    amplitude: 0.35
+    extent_mm: 25.0
+  - kind: center_high
+    target_item: CP_FRO
+    amplitude: 0.05
+    radius_mm: 40.0
+  - kind: local_spot
+    scope: wafer
+    target: yield
+    amplitude: -0.90
+    radius_mm: 15.0
+    center_mm: [40.0, -20.0]
+
+defects:
+  model: clustered        # or poisson
+  failure_rate: 0.01      # expected combined CP_FUNC/CP_SCAN failure rate
+  cluster_size: 8         # expected failing dies per defect cluster
+  cluster_radius_mm: 10.0
+  target_items: [CP_FUNC, CP_SCAN]
+```
+
+A yield pattern creates failures by failing `CP_FUNC` (or `CP_SCAN`); positive-amplitude `center_high` / `edge_high` instead reduce the random-defect failure probability. An item pattern shifts that item's measurements by a fraction of its typical value; `ring`, `radial_gradient`, and `local_spot` amplitudes carry their own sign. Random defects use a clustered model by default (a Gaussian cluster-intensity field with negative-binomial defect counts), and `failure_rate` is the expected die-level failure rate across all `target_items`.
+
+`export.ground_truth` is enabled by default: each generation run produces one JSON manifest (`{product}_ground_truth_{timestamp}.json`) plus, by default, one per-die truth file per lot (`{product}_{lot}_die_truth_{timestamp}.csv.gz`). The manifest carries the full scenario and `scenario_sha256`, seed, per-lot/per-wafer yields, latent-factor means, the pattern manifest with each pattern's contribution, random-defect clusters, target/achieved linkage correlations, outlier wafers, and the die-truth file names. Per-die truth contains `true_pass`, true hard/soft bins, the six latent factors, and `pattern_ids` separated by `|`. `--no-die-truth` suppresses only the per-die file (the manifest is still written); `export.ground_truth: false` disables ground truth entirely.
+
+[examples/patterns.yaml](examples/patterns.yaml) combines an edge-low yield pattern, a center-high item pattern, a wafer-scoped local spot, and the default random defects:
+
+```bash
+uv run silicondraft generate -c examples/patterns.yaml -o out/
+```
+
 Validate a scenario file. A valid configuration exits 0 and prints a summary (die count, item count, and more); an invalid one exits 1 with locatable field paths and error codes:
 
 ```bash
@@ -319,10 +402,13 @@ scenario = load_scenario(
     "scenario.yaml"
 )  # returns a typed scenario after structural + semantic validation
 generated = generate(scenario)  # returns a GenerationResult
-paths = export(generated, out_dir="out")  # writes CP/WAT CSV per export options
+paths = export(generated, out_dir="out")  # writes CSV and ground truth per export options
+paths = export(generated, out_dir="out", include_die_truth=False)  # override per-die truth
 
 for entry in generated.linkage_report:
     print(entry.wat_item, entry.cp_item, entry.target_r, entry.achieved_r)
+for report in generated.pattern_reports:
+    print(report.pattern_id, report.realized_failures, report.item_shift_sum)
 ```
 
 ## Development

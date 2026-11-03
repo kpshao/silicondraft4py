@@ -186,6 +186,12 @@ _GENERIC_CMOS_LOGIC_55NM: tuple[CatalogItem, ...] = (
     ),
 )
 
+
+def can_fail(item: CatalogItem) -> bool:
+    """Return whether a failing measurement can violate this item's pass rule."""
+    return item.distribution == "bernoulli" or item.lsl is not None or item.usl is not None
+
+
 _PRESETS: dict[str, tuple[CatalogItem, ...]] = {
     "generic_cmos_logic_55nm": _GENERIC_CMOS_LOGIC_55NM,
 }

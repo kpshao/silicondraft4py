@@ -4,12 +4,16 @@ from dataclasses import dataclass
 from os import PathLike
 from string import Formatter
 
-from ..catalog import Catalog, resolve_catalog
+from ..catalog import Catalog, can_fail, resolve_catalog
 from ..errors import ScenarioError, ValidationIssue
 from ..geometry import count_dies
 from ..latent import DEFAULT_LINKAGE_ITEM_IDS, LINKABLE_DISTRIBUTIONS, WAT_FACTOR
 from .loader import parse_scenario, read_scenario_data
 from .models import (
+    PATTERN_REQUIRED_EXTENTS,
+    PATTERN_SIGNED_AMPLITUDE_KINDS,
+    YIELD_FAILURE_ITEM_IDS,
+    Defects,
     ExportOptions,
     Items,
     Linkage,
@@ -19,17 +23,6 @@ from .models import (
     TestPhase,
     Wafer,
 )
-
-_REQUIRED_PATTERN_EXTENTS: dict[str, tuple[str, ...]] = {
-    "center_high": ("radius_mm",),
-    "center_low": ("radius_mm",),
-    "edge_high": ("extent_mm",),
-    "edge_low": ("extent_mm",),
-    "ring": ("radius_mm", "width_mm"),
-    "radial_gradient": (),
-    "local_spot": ("radius_mm",),
-}
-_SIGNED_AMPLITUDE_KINDS = frozenset({"ring", "radial_gradient", "local_spot"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -96,6 +89,7 @@ def validate_scenario_model(scenario: Scenario) -> ValidationResult:
     issues.extend(_validate_geometry(scenario.wafer))
     issues.extend(_validate_lots(scenario.lots))
     issues.extend(_validate_patterns(scenario.patterns, resolution.catalog))
+    issues.extend(_validate_defects(scenario.defects, resolution.catalog))
     issues.extend(_validate_linkage(scenario.linkage, resolution.catalog))
     issues.extend(_validate_item_overrides_linkage(scenario.items))
     issues.extend(_validate_export(scenario.export))
@@ -233,7 +227,7 @@ def _validate_patterns(patterns: list[Pattern], catalog: Catalog) -> list[Valida
             issues.extend(
                 _validate_item_reference(pattern.target_item, f"{path}.target_item", "CP", catalog)
             )
-        for field_name in _REQUIRED_PATTERN_EXTENTS[pattern.kind]:
+        for field_name in PATTERN_REQUIRED_EXTENTS[pattern.kind]:
             if getattr(pattern, field_name) is None:
                 issues.append(
                     ValidationIssue(
@@ -242,7 +236,67 @@ def _validate_patterns(patterns: list[Pattern], catalog: Catalog) -> list[Valida
                         message=(f"pattern kind '{pattern.kind}' requires '{field_name}'"),
                     )
                 )
+        if pattern.target == "yield" and not _has_yield_failure_item(catalog):
+            issues.append(
+                ValidationIssue(
+                    code="PATTERN_YIELD_TARGET_UNAVAILABLE",
+                    path=f"{path}.target",
+                    message=(
+                        "yield target requires an enabled CP_FUNC or CP_SCAN item that can fail"
+                    ),
+                )
+            )
         issues.extend(_validate_pattern_amplitude(pattern, path))
+    return issues
+
+
+def _has_yield_failure_item(catalog: Catalog) -> bool:
+    return any(
+        can_fail(item)
+        for item in catalog.enabled_items
+        if item.phase == "CP" and item.id in YIELD_FAILURE_ITEM_IDS
+    )
+
+
+def _validate_defects(defects: Defects, catalog: Catalog) -> list[ValidationIssue]:
+    if not defects.enabled:
+        return []
+    if not defects.target_items:
+        return [
+            ValidationIssue(
+                code="DEFECT_TARGET_MISSING",
+                path="defects.target_items",
+                message="enabled random defects must target at least one CP item",
+            )
+        ]
+
+    issues: list[ValidationIssue] = []
+    seen: set[str] = set()
+    for index, item_id in enumerate(defects.target_items):
+        path = f"defects.target_items[{index}]"
+        issues.extend(_validate_item_reference(item_id, path, "CP", catalog))
+        item = catalog.get(item_id)
+        if item is not None and item.enabled and not can_fail(item):
+            issues.append(
+                ValidationIssue(
+                    code="DEFECT_TARGET_UNSUPPORTED",
+                    path=path,
+                    message=(
+                        f"test item '{item_id}' has no pass rule; defect targets need "
+                        "a bernoulli item or a spec limit"
+                    ),
+                )
+            )
+        if item_id in seen:
+            issues.append(
+                ValidationIssue(
+                    code="DUPLICATE_DEFECT_TARGET",
+                    path=path,
+                    message=f"defect target '{item_id}' is listed more than once",
+                )
+            )
+        else:
+            seen.add(item_id)
     return issues
 
 
@@ -385,7 +439,7 @@ def _validate_item_overrides_linkage(items: Items) -> list[ValidationIssue]:
 
 
 def _validate_pattern_amplitude(pattern: Pattern, path: str) -> list[ValidationIssue]:
-    if pattern.kind in _SIGNED_AMPLITUDE_KINDS:
+    if pattern.kind in PATTERN_SIGNED_AMPLITUDE_KINDS:
         if pattern.amplitude == 0:
             return [
                 ValidationIssue(

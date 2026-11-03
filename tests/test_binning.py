@@ -22,7 +22,12 @@ def _write_scenario(
         "schema_version": 1,
         "product": {"name": "GEN55LOGIC"},
         "lots": {"wafers_per_lot": wafers_per_lot},
-        "export": {"wat_csv": False},
+        "defects": {"enabled": False},
+        "export": {
+            "wat_csv": False,
+            "ground_truth": False,
+            "include_die_truth": False,
+        },
         "seed": seed,
     }
     if overrides is not None:

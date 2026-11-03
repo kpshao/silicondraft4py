@@ -14,6 +14,7 @@ from .binning import (
     bin_pareto,
 )
 from .catalog import CatalogItem
+from .defects import DefectCluster
 from .scenario.models import Scenario
 
 FloatArray = NDArray[np.float64]
@@ -35,6 +36,10 @@ class CPWafer:
     soft_bin: IntArray
     passed: BoolArray
     values: Mapping[str, FloatArray]
+    factors: FloatArray
+    pattern_hits: Mapping[str, BoolArray]
+    defect_failure: BoolArray
+    defect_clusters: tuple[DefectCluster, ...]
     tested_at: datetime
 
     @property
@@ -130,6 +135,19 @@ class LinkageReportEntry:
 
 
 @dataclass(frozen=True, slots=True)
+class PatternReport:
+    """Injected contribution of one systematic spatial pattern."""
+
+    pattern_id: str
+    affected_die_count: int
+    realized_failures: int
+    item_shift_sum: float
+    item_shift_die_count: int
+    recovery_probability_sum: float
+    affected_wafers: tuple[tuple[str, str], ...]
+
+
+@dataclass(frozen=True, slots=True)
 class GenerationResult:
     """The output of one generation run.
 
@@ -144,4 +162,5 @@ class GenerationResult:
     lots: tuple[CPLot, ...]
     wat_lots: tuple[WatLot, ...]
     linkage_report: tuple[LinkageReportEntry, ...]
+    pattern_reports: tuple[PatternReport, ...]
     generated_at: datetime

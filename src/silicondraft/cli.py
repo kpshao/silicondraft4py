@@ -57,6 +57,11 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="DIR",
         help="directory for exported files",
     )
+    generate_parser.add_argument(
+        "--no-die-truth",
+        action="store_true",
+        help="skip the per-die ground truth CSV.GZ (the JSON manifest is still written)",
+    )
 
     validate_parser = subparsers.add_parser("validate", help="validate a scenario YAML file")
     validate_parser.add_argument(
@@ -80,7 +85,11 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     match args.command:
         case "generate":
-            return _generate(args.config, args.output)
+            return _generate(
+                args.config,
+                args.output,
+                include_die_truth=False if args.no_die_truth else None,
+            )
         case "validate":
             return _validate(args.config)
         case "schema":
@@ -92,7 +101,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 1
 
 
-def _generate(scenario_path: Path, output_dir: Path) -> int:
+def _generate(
+    scenario_path: Path,
+    output_dir: Path,
+    *,
+    include_die_truth: bool | None = None,
+) -> int:
     try:
         scenario = load_scenario(scenario_path)
     except ScenarioError as exc:
@@ -109,7 +123,7 @@ def _generate(scenario_path: Path, output_dir: Path) -> int:
         return 2
 
     try:
-        paths = export(result, output_dir)
+        paths = export(result, output_dir, include_die_truth=include_die_truth)
     except Exception as exc:
         print(f"export failed: {exc}", file=sys.stderr)
         return 3
