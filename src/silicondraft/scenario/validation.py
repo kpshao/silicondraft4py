@@ -23,6 +23,7 @@ from .models import (
     TestPhase,
     Wafer,
 )
+from .presets import PRESET_NAMES
 
 
 @dataclass(frozen=True, slots=True)
@@ -116,6 +117,25 @@ def validate_scenario_model(scenario: Scenario) -> ValidationResult:
         items_total=len(enabled_items),
     )
     return ValidationResult(ok=True, issues=(), summary=summary)
+
+
+def scenario_from_preset(name: str, seed: int) -> Scenario:
+    """Build a fully expanded, validated scenario from a built-in preset."""
+    if name not in PRESET_NAMES:
+        raise ScenarioError(
+            [
+                ValidationIssue(
+                    code="UNKNOWN_PRESET",
+                    path="preset",
+                    message=(f"unknown preset '{name}'; available: {', '.join(PRESET_NAMES)}"),
+                )
+            ]
+        )
+    scenario = parse_scenario({"schema_version": 1, "preset": name, "seed": seed})
+    result = validate_scenario_model(scenario)
+    if not result.ok:
+        raise ScenarioError(result.issues)
+    return scenario
 
 
 def _validate_geometry(wafer: Wafer) -> list[ValidationIssue]:

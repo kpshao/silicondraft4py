@@ -4,7 +4,7 @@
 
 SiliconDraft 是一个 scenario（场景）驱动的合成 CP/WAT 测试数据生成器，用于验证良率管理系统（YMS）的数据导入、良率/bin 分析、wafer map、SPC 与相关性分析。V1 覆盖 CP 与 WAT；FT 计划于 V2 支持。
 
-当前处于 V1 开发早期：项目骨架、scenario v1 schema、结构/语义校验与 `validate` / `schema` / `version` CLI 已完成；CP 生成与 CP CSV 导出（`generate`）已接入，包含 21 个 CP 测试项、hard/soft bin、由 spec limits 推导的 pass/fail、lot/wafer/die 良率汇总与 hard/soft bin Pareto；CP CSV 默认每 lot 一个 long CSV，并保留 [ADR-0005](docs/adr/0005-cp-csv-multiblock-layout.md) 的每 wafer 四块布局（见 [ADR-0010](docs/adr/0010-cp-long-csv-default-and-multi-block-option.md)）。WAT 生成与 WAT long CSV、六个 latent process factor 的 lot/wafer/die 分解、WAT↔CP 灵敏度联动、目标相关系数校准与生成报告也已接入（见 [ADR-0006](docs/adr/0006-wat-site-pairing-and-correlation-report.md)）。系统性空间模式、带簇聚的随机缺陷与 ground truth（JSON manifest + 每 die CSV.GZ）已接入（见 [ADR-0007](docs/adr/0007-patterns-defects-and-groundtruth.md)）。`quick` / `trend` / `demo` 预设、多 lot 时间线与 CLI 逐 lot 流式生成也已接入（见 [ADR-0008](docs/adr/0008-scenario-presets-and-streaming-generation.md)）；STDF 与 GUI 仍在后续里程碑。
+当前处于 V1 开发早期：项目骨架、scenario v1 schema、结构/语义校验与 `validate` / `schema` / `version` CLI 已完成；CP 生成与 CP CSV 导出（`generate`）已接入，包含 21 个 CP 测试项、hard/soft bin、由 spec limits 推导的 pass/fail、lot/wafer/die 良率汇总与 hard/soft bin Pareto；CP CSV 默认每 lot 一个 long CSV，并保留 [ADR-0005](docs/adr/0005-cp-csv-multiblock-layout.md) 的每 wafer 四块布局（见 [ADR-0010](docs/adr/0010-cp-long-csv-default-and-multi-block-option.md)）。WAT 生成与 WAT long CSV、六个 latent process factor 的 lot/wafer/die 分解、WAT↔CP 灵敏度联动、目标相关系数校准与生成报告也已接入（见 [ADR-0006](docs/adr/0006-wat-site-pairing-and-correlation-report.md)）。系统性空间模式、带簇聚的随机缺陷与 ground truth（JSON manifest + 每 die CSV.GZ）已接入（见 [ADR-0007](docs/adr/0007-patterns-defects-and-groundtruth.md)）。`quick` / `trend` / `demo` 预设、多 lot 时间线与 CLI 逐 lot 流式生成也已接入（见 [ADR-0008](docs/adr/0008-scenario-presets-and-streaming-generation.md)）。GUI 主干（scenario 配置树、YAML 加载/保存、预设选择、后台生成与取消、进度与错误展示）已接入；预览、数据表、导出、STDF 与完整中英文切换（`tr()` 接口已留好）留给后续里程碑。
 
 ## 安装
 
@@ -201,6 +201,17 @@ seed: 20260105
 
 完整分节与默认值见 [V1 规格](docs/design/v1-spec.md) 与 [领域词汇表](GLOSSARY.md)。
 
+### 图形界面
+
+GUI 依赖 PySide6-Essentials：
+
+```bash
+uv sync --extra gui
+uv run silicondraft-gui
+```
+
+主窗口左侧显示当前 scenario 的配置树；工具栏可打开/保存 YAML、选择 `quick` / `trend` / `demo` 预设，并在后台 worker 线程生成数据。生成期间进度条与状态栏跟随当前 lot/wafer，Cancel 可停止生成并把窗口恢复到可操作状态；加载、保存或生成时的配置错误以 `path: message [code]` 列在右侧问题列表中。保存会写出完全展开后的 scenario，重新加载结果一致。预览、数据表、导出与完整中英文切换（`tr()` 接口已留好）不在本里程碑内。
+
 ## Python API
 
 ```python
@@ -209,6 +220,7 @@ from silicondraft import (
     generate,
     generate_to_directory,
     load_scenario,
+    save_scenario,
     validate_scenario,
 )
 
@@ -230,6 +242,8 @@ for entry in generated.linkage_report:
 for report in generated.pattern_reports:
     print(report.pattern_id, report.realized_failures, report.item_shift_sum)
 ```
+
+`generate()` 与 `generate_to_directory()` 接受可选的 `progress` 与 `should_cancel` 回调：`progress` 在每个 wafer 完成后收到 `GenerationProgress`，`should_cancel` 返回 `True` 时生成抛出 `GenerationCancelled`。`save_scenario(scenario, path)` 把 scenario 写成完全展开、可直接重新加载的 YAML。
 
 ## 开发
 
@@ -260,7 +274,7 @@ MIT，见 [LICENSE](LICENSE)。
 
 SiliconDraft is a scenario-driven synthetic CP/WAT test data generator for validating yield management system (YMS) functions such as data import, yield/bin analysis, wafer maps, SPC, and correlation analysis. V1 covers CP and WAT; FT is planned for V2.
 
-The project is in early V1 development: the project skeleton, scenario v1 schema, structural/semantic validation, and the `validate` / `schema` / `version` CLI are in place, along with CP generation and CP CSV export (`generate`). Generation now covers all 21 CP test items, hard/soft bins, pass/fail derived from spec limits, lot/wafer/die yield summaries, and hard/soft-bin Pareto; CP CSV defaults to one long CSV per lot and retains the per-wafer four-block layout from [ADR-0005](docs/adr/0005-cp-csv-multiblock-layout.md) (see [ADR-0010](docs/adr/0010-cp-long-csv-default-and-multi-block-option.md)). WAT generation with a long CSV, the lot/wafer/die decomposition of six latent process factors, WAT↔CP sensitivity linkage, target-correlation calibration, and the generation report are also in place (see [ADR-0006](docs/adr/0006-wat-site-pairing-and-correlation-report.md)). Systematic spatial patterns, clustered random defects, and ground truth (a JSON manifest plus per-die CSV.GZ) are in place too (see [ADR-0007](docs/adr/0007-patterns-defects-and-groundtruth.md)). The `quick` / `trend` / `demo` presets, multi-lot timelines, and the CLI's per-lot streaming generation are also in place (see [ADR-0008](docs/adr/0008-scenario-presets-and-streaming-generation.md)); STDF and the GUI arrive in later milestones.
+The project is in early V1 development: the project skeleton, scenario v1 schema, structural/semantic validation, and the `validate` / `schema` / `version` CLI are in place, along with CP generation and CP CSV export (`generate`). Generation now covers all 21 CP test items, hard/soft bins, pass/fail derived from spec limits, lot/wafer/die yield summaries, and hard/soft-bin Pareto; CP CSV defaults to one long CSV per lot and retains the per-wafer four-block layout from [ADR-0005](docs/adr/0005-cp-csv-multiblock-layout.md) (see [ADR-0010](docs/adr/0010-cp-long-csv-default-and-multi-block-option.md)). WAT generation with a long CSV, the lot/wafer/die decomposition of six latent process factors, WAT↔CP sensitivity linkage, target-correlation calibration, and the generation report are also in place (see [ADR-0006](docs/adr/0006-wat-site-pairing-and-correlation-report.md)). Systematic spatial patterns, clustered random defects, and ground truth (a JSON manifest plus per-die CSV.GZ) are in place too (see [ADR-0007](docs/adr/0007-patterns-defects-and-groundtruth.md)). The `quick` / `trend` / `demo` presets, multi-lot timelines, and the CLI's per-lot streaming generation are also in place (see [ADR-0008](docs/adr/0008-scenario-presets-and-streaming-generation.md)). The GUI backbone — scenario configuration tree, YAML load/save, preset selection, background generation with cancel, progress, and readable issues — is also in place; previews, the data table, export, STDF, and the full English/Chinese switch (the `tr()` seam is in place) arrive in later milestones.
 
 ## Install
 
@@ -457,6 +471,17 @@ seed: 20260105
 
 See the [V1 specification](docs/design/v1-spec.md) and the [domain glossary](GLOSSARY.md) for all sections and defaults.
 
+### GUI
+
+The GUI depends on PySide6-Essentials:
+
+```bash
+uv sync --extra gui
+uv run silicondraft-gui
+```
+
+The main window shows the current scenario's configuration tree on the left. The toolbar opens and saves YAML, selects the `quick` / `trend` / `demo` presets, and generates in a background worker thread. During generation the progress bar and status bar follow the current lot/wafer; Cancel stops the run and restores the window to a usable state. Configuration errors from loading, saving, or generation appear in the right-hand issues list as `path: message [code]`. Saving writes the fully expanded scenario, so reloading yields the same scenario. Previews, the data table, export, and the full English/Chinese switch (the `tr()` seam is in place) are outside this milestone.
+
 ## Python API
 
 ```python
@@ -465,6 +490,7 @@ from silicondraft import (
     generate,
     generate_to_directory,
     load_scenario,
+    save_scenario,
     validate_scenario,
 )
 
@@ -488,6 +514,8 @@ for entry in generated.linkage_report:
 for report in generated.pattern_reports:
     print(report.pattern_id, report.realized_failures, report.item_shift_sum)
 ```
+
+`generate()` and `generate_to_directory()` accept optional `progress` and `should_cancel` callbacks: `progress` receives a `GenerationProgress` after each wafer, and generation raises `GenerationCancelled` when `should_cancel` returns `True`. `save_scenario(scenario, path)` writes a fully expanded scenario that reloads to the same value.
 
 ## Development
 

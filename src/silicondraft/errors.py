@@ -30,3 +30,11 @@ class ScenarioError(ValueError):
 
 class ExportError(RuntimeError):
     """Raised when generated data cannot be exported."""
+
+
+class GenerationCancelled(Exception):
+    """Raised when a caller cancels an in-progress generation.
+
+    The generation loops check ``should_cancel`` between wafers, so no partial
+    :class:`~silicondraft.GenerationResult` is returned.
+    """

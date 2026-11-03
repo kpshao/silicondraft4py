@@ -27,6 +27,9 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install dependencies
         run: uv sync --locked
+      - name: Install Qt runtime libraries
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libegl1 libgl1 libxkbcommon0
       - name: Format check
         run: uv run ruff format --check
       - name: Lint
