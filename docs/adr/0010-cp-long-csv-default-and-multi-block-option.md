@@ -22,6 +22,8 @@ CP CSV 原先只有每 wafer 一个文件的四块布局（ADR-0005），下游 
 - `schema_version` 不变；`cp_csv` 与 `cp_csv_layout` 均为 schema 字段，JSON Schema 自动暴露。
 - WAT long CSV 的既有列风格成为两种 phase 的共同参照；未来 WAT 若重新讨论多块布局，应以本 ADR 为参照。
 
+**后续更新（T12）：** GUI 导出对话框可以按次覆盖 `cp_csv_layout`（`long` / `blocks` / `both`）、`ground_truth` 与 `include_die_truth`，覆盖只作用于本次导出，不写回 scenario。T12 所说的 split-by-wafer 即选择 `blocks` 布局（每 wafer 一个多块 CSV），因此不重新引入 ADR-0005 移除的 `export.split_by_wafer` schema 字段。
+
 <details>
 <summary>English</summary>
 
@@ -48,5 +50,7 @@ The CP CSV previously only had the per-wafer four-block layout (ADR-0005), so pa
 - A 25-wafer × 21-item lot is about 1.4M rows, above Excel's single-sheet limit; the long CSV targets programmatic consumers such as pandas/YMS.
 - `schema_version` is unchanged; `cp_csv` and `cp_csv_layout` are both schema fields exposed by the JSON Schema automatically.
 - The existing WAT long CSV column style becomes the shared reference for both phases; if WAT's multi-block layout is revisited later, this ADR is the reference point.
+
+**Update (T12):** The GUI export dialog can override `cp_csv_layout` (`long` / `blocks` / `both`), `ground_truth`, and `include_die_truth` for one export run without writing the override back to the scenario. The split-by-wafer choice in T12 means selecting the `blocks` layout (one multi-block CSV per wafer); it does not reintroduce the `export.split_by_wafer` schema field removed by ADR-0005.
 
 </details>

@@ -41,6 +41,7 @@ from .scenario_tree import ScenarioTree
 from .trend import TrendPanel
 from .wafer_map import WaferMapPanel
 from .worker import GenerateFn, GenerationWorker
+from .yaml_editor import YamlEditorDialog
 
 DEFAULT_SEED = 20260105
 
@@ -221,8 +222,19 @@ class MainWindow(QMainWindow):
 
     # -- export -------------------------------------------------------------
 
-    def export_to_directory(self, out_dir: str | Path) -> bool:
-        """Export the current result's CSV files and report the outcome."""
+    def export_to_directory(
+        self,
+        out_dir: str | Path,
+        *,
+        cp_csv_layout: str | None = None,
+        include_ground_truth: bool | None = None,
+        include_die_truth: bool | None = None,
+    ) -> bool:
+        """Export the current result's CSV files and report the outcome.
+
+        The keyword overrides apply to this export run only; the GUI passes the
+        choices from :class:`ExportDialog` without rewriting the scenario.
+        """
         result = self._last_result
         if result is None or self._worker is not None:
             return False
@@ -233,7 +245,14 @@ class MainWindow(QMainWindow):
             self._show_error(self.tr("Export failed: {message}").format(message=message))
             return False
         try:
-            paths = export(result, out_dir, formats=("csv",))
+            paths = export(
+                result,
+                out_dir,
+                formats=("csv",),
+                cp_csv_layout=cp_csv_layout,
+                include_ground_truth=include_ground_truth,
+                include_die_truth=include_die_truth,
+            )
         except Exception as exc:
             self._last_export_paths = ()
             self._show_error(self.tr("Export failed: {message}").format(message=exc))
@@ -292,6 +311,9 @@ class MainWindow(QMainWindow):
         self.save_as_action = QAction(self.tr("Save As..."), self)
         self.save_as_action.triggered.connect(self._save_scenario_as)
 
+        self.yaml_editor_action = QAction(self.tr("YAML Editor..."), self)
+        self.yaml_editor_action.triggered.connect(self._open_yaml_editor)
+
         self.generate_action = QAction(self.tr("Generate"), self)
         self.generate_action.triggered.connect(self.start_generation)
 
@@ -306,6 +328,7 @@ class MainWindow(QMainWindow):
         toolbar.addAction(self.open_action)
         toolbar.addAction(self.save_action)
         toolbar.addAction(self.save_as_action)
+        toolbar.addAction(self.yaml_editor_action)
         toolbar.addSeparator()
         toolbar.addWidget(QLabel(self.tr("Preset:"), toolbar))
         self.preset_combo = QComboBox(toolbar)
@@ -325,6 +348,7 @@ class MainWindow(QMainWindow):
         file_menu.addAction(self.open_action)
         file_menu.addAction(self.save_action)
         file_menu.addAction(self.save_as_action)
+        file_menu.addAction(self.yaml_editor_action)
         file_menu.addSeparator()
         exit_action = QAction(self.tr("Exit"), self)
         exit_action.setShortcut(QKeySequence.StandardKey.Quit)
@@ -428,15 +452,37 @@ class MainWindow(QMainWindow):
         if path:
             self.save_to_path(path)
 
+    def _open_yaml_editor(self) -> None:
+        if self._scenario is None or self._worker is not None:
+            return
+        dialog = YamlEditorDialog(self._scenario, self._scenario_path, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        saved_path = dialog.saved_path
+        if saved_path is not None and self.load_path(saved_path):
+            return
+        if dialog.saved_scenario is not None:
+            self.set_scenario(dialog.saved_scenario, saved_path)
+
     def _open_export_dialog(self) -> None:
         if not self._can_export:
             return
-        dialog = ExportDialog(self._default_export_dir(), self)
+        result = self._last_result
+        if result is None:  # pragma: no cover - guarded by _can_export
+            return
+        dialog = ExportDialog(
+            self._default_export_dir(), self, export_options=result.scenario.export
+        )
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         out_dir = dialog.output_dir()
         if out_dir is not None:
-            self.export_to_directory(out_dir)
+            self.export_to_directory(
+                out_dir,
+                cp_csv_layout=dialog.cp_csv_layout(),
+                include_ground_truth=dialog.include_ground_truth(),
+                include_die_truth=dialog.include_die_truth(),
+            )
 
     def _default_export_dir(self) -> Path:
         if self._scenario_path is not None:
@@ -491,6 +537,7 @@ class MainWindow(QMainWindow):
         self.open_action.setEnabled(not running)
         self.save_action.setEnabled(has_scenario and not running)
         self.save_as_action.setEnabled(has_scenario and not running)
+        self.yaml_editor_action.setEnabled(has_scenario and not running)
         self.generate_action.setEnabled(has_scenario and not running)
         self.cancel_action.setEnabled(running)
         self.export_action.setEnabled(self._can_export and not running)

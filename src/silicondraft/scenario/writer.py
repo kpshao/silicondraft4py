@@ -22,6 +22,12 @@ def scenario_document(scenario: Scenario) -> dict[str, Any]:
     return scenario.model_dump(mode="json")
 
 
+def scenario_yaml(scenario: Scenario) -> str:
+    """Return the fully expanded scenario as YAML text."""
+    document = scenario_document(scenario)
+    return yaml.safe_dump(document, sort_keys=False, allow_unicode=True)
+
+
 def save_scenario(scenario: Scenario, path: str | PathLike[str]) -> Path:
     """Validate ``scenario`` and write it as fully expanded YAML.
 
@@ -33,8 +39,7 @@ def save_scenario(scenario: Scenario, path: str | PathLike[str]) -> Path:
     if not validation.ok:
         raise ScenarioError(validation.issues)
     file_path = Path(path)
-    document = scenario_document(scenario)
-    text = yaml.safe_dump(document, sort_keys=False, allow_unicode=True)
+    text = scenario_yaml(scenario)
     try:
         file_path.write_text(text, encoding="utf-8")
     except OSError as exc:
@@ -42,4 +47,4 @@ def save_scenario(scenario: Scenario, path: str | PathLike[str]) -> Path:
     return file_path
 
 
-__all__ = ["save_scenario", "scenario_document"]
+__all__ = ["save_scenario", "scenario_document", "scenario_yaml"]

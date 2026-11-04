@@ -210,7 +210,7 @@ uv sync --extra gui
 uv run silicondraft-gui
 ```
 
-主窗口左侧显示当前 scenario 的配置树；工具栏可打开/保存 YAML、选择 `quick` / `trend` / `demo` 预设，并在后台 worker 线程生成数据。生成期间进度条与状态栏跟随当前 lot/wafer，Cancel 可停止生成并把窗口恢复到可操作状态；加载、保存或生成时的配置错误以 `path: message [code]` 列在右侧问题列表中。生成完成后右侧预览页签依次为 Wafer Map、Distribution、Correlation、Trend 与 Results：Wafer Map 可按 hard bin、soft bin 或选定 CP item 着色；Distribution 显示选定 CP item 的直方图与规格限；Correlation 针对选定的 WAT↔CP 联动对，绘制 WAT 站点与最近 die 的散点图，并标注 target r、achieved r 与 observed r；Trend 可在 lot 与 wafer 视图间切换，展示 CP 良率，或选定联动对 WAT/CP 均值的标准化（z-score）趋势；Results 以分页表格显示 die 级记录（lot/wafer、坐标、test site、hard/soft bin、die pass 与各 CP 测试项值）。大数据量预览使用确定性降采样；无 WAT 数据或单 lot 的 lot 级趋势会显示空状态说明。工具栏 Export… 打开导出对话框，选择输出目录后按 scenario 的导出选项写出 CSV（以及 scenario 启用的 ground truth），成功在状态栏反馈，失败同时出现在状态栏与问题列表，生成前导出不可用。保存会写出完全展开后的 scenario，重新加载结果一致。STDF 与完整中英文切换（`tr()` 接口已留好）不在本里程碑内。
+主窗口左侧显示当前 scenario 的配置树；工具栏可打开/保存 YAML、选择 `quick` / `trend` / `demo` 预设，并在后台 worker 线程生成数据。生成期间进度条与状态栏跟随当前 lot/wafer，Cancel 可停止生成并把窗口恢复到可操作状态；加载、保存或生成时的配置错误以 `path: message [code]` 列在右侧问题列表中。生成完成后右侧预览页签依次为 Wafer Map、Distribution、Correlation、Trend 与 Results：Wafer Map 可按 hard bin、soft bin 或选定 CP item 着色，并可打开 Ground truth 复选框，按当前 wafer 上实际生效的模式绘制注入范围/边界（中心圆、环、边缘环带与径向渐变范围）；Distribution 显示选定 CP item 的直方图与规格限；Correlation 针对选定的 WAT↔CP 联动对，绘制 WAT 站点与最近 die 的散点图，并标注 target r、achieved r 与 observed r；Trend 可在 lot 与 wafer 视图间切换，展示 CP 良率，或选定联动对 WAT/CP 均值的标准化（z-score）趋势；Results 以分页表格显示 die 级记录（lot/wafer、坐标、test site、hard/soft bin、die pass 与各 CP 测试项值）。大数据量预览使用确定性降采样；无 WAT 数据或单 lot 的 lot 级趋势会显示空状态说明。工具栏 Export… 打开导出对话框：除输出目录外，还可为本次导出覆盖 CP CSV 布局（每 lot 一个 long CSV、每 wafer 一个多块 CSV，或两者）、是否写 ground truth 以及是否写每 die 真值；这些选择不修改 scenario。成功在状态栏反馈，失败同时出现在状态栏与问题列表，生成前导出不可用。工具栏 YAML Editor… 打开 YAML 编辑器，加载完全展开的 scenario；Validate 就地校验并把光标移到首个可定位错误（YAML 语法错误定位到行列，语义错误定位到字段路径），Save 仅在校验通过后写回完全展开的 YAML，因此保存结果可直接交给 CLI 使用。保存会写出完全展开后的 scenario，重新加载结果一致。STDF 与完整中英文切换（`tr()` 接口已留好）不在本里程碑内。
 
 ## Python API
 
@@ -233,6 +233,8 @@ scenario = load_scenario("scenario.yaml")  # 结构 + 语义校验通过后返�
 generated = generate(scenario)  # 返回 GenerationResult
 paths = export(generated, out_dir="out")  # 按 export 选项写出 CSV 与 ground truth
 paths = export(generated, out_dir="out", include_die_truth=False)  # 覆盖每 die 真值开关
+paths = export(generated, out_dir="out", cp_csv_layout="blocks")  # 本次导出改用每 wafer 多块 CSV
+paths = export(generated, out_dir="out", include_ground_truth=False)  # 本次导出不写 ground truth
 
 # 或逐 lot 生成并导出，峰值内存按单 lot 增长：
 summary, paths = generate_to_directory(scenario, out_dir="out")
@@ -480,7 +482,7 @@ uv sync --extra gui
 uv run silicondraft-gui
 ```
 
-The main window shows the current scenario's configuration tree on the left. The toolbar opens and saves YAML, selects the `quick` / `trend` / `demo` presets, and generates in a background worker thread. During generation the progress bar and status bar follow the current lot/wafer; Cancel stops the run and restores the window to a usable state. Configuration errors from loading, saving, or generation appear in the right-hand issues list as `path: message [code]`. After generation, the preview tabs show Wafer Map, Distribution, Correlation, Trend, and Results. The Wafer Map colours dies by hard bin, soft bin, or a selected CP item; Distribution shows a selected CP item's histogram and spec limits; Correlation scatters WAT sites against their nearest dies for a selected WAT↔CP linkage pair and annotates the target r, achieved r, and observed r; Trend switches between lot and wafer views and shows CP yield or standardised (z-score) trends of the selected pair's mean WAT/CP values; Results lists die-level records (lot/wafer, coordinates, test site, hard/soft bin, die pass, and each CP test item value) in a paginated table. Large previews use deterministic downsampling, and empty states explain missing WAT data or a lot-level trend with a single lot. Export… opens a dialog that picks an output directory and writes CSV files according to the scenario's export options (plus ground truth when the scenario enables it); success is reported in the status bar, failure in both the status bar and the issues list, and export stays disabled until a generation completes. Saving writes the fully expanded scenario, so reloading yields the same scenario. STDF and the full English/Chinese switch (the `tr()` seam is in place) are outside this milestone.
+The main window shows the current scenario's configuration tree on the left. The toolbar opens and saves YAML, selects the `quick` / `trend` / `demo` presets, and generates in a background worker thread. During generation the progress bar and status bar follow the current lot/wafer; Cancel stops the run and restores the window to a usable state. Configuration errors from loading, saving, or generation appear in the right-hand issues list as `path: message [code]`. After generation, the preview tabs show Wafer Map, Distribution, Correlation, Trend, and Results. The Wafer Map colours dies by hard bin, soft bin, or a selected CP item; its Ground truth checkbox draws the extents and boundaries of the patterns active on the current wafer (centre discs, rings, edge bands, and radial-gradient extents); Distribution shows a selected CP item's histogram and spec limits; Correlation scatters WAT sites against their nearest dies for a selected WAT↔CP linkage pair and annotates the target r, achieved r, and observed r; Trend switches between lot and wafer views and shows CP yield or standardised (z-score) trends of the selected pair's mean WAT/CP values; Results lists die-level records (lot/wafer, coordinates, test site, hard/soft bin, die pass, and each CP test item value) in a paginated table. Large previews use deterministic downsampling, and empty states explain missing WAT data or a lot-level trend with a single lot. Export… opens a dialog that picks an output directory and can override, for this run only, the CP CSV layout (one long CSV per lot, one multi-block CSV per wafer, or both), whether ground truth is written, and whether per-die truth is written; these choices do not rewrite the scenario. Success is reported in the status bar, failure in both the status bar and the issues list, and export stays disabled until a generation completes. YAML Editor… opens an editor loaded with the fully expanded scenario; Validate checks the text in place and moves the cursor to the first locatable issue (a line and column for YAML syntax errors, a field path for semantic errors), and Save writes the fully expanded YAML only after validation passes, so the saved file can be handed directly to the CLI. Saving from the main window writes the fully expanded scenario, so reloading yields the same scenario. STDF and the full English/Chinese switch (the `tr()` seam is in place) are outside this milestone.
 
 ## Python API
 
@@ -505,6 +507,10 @@ scenario = load_scenario(
 generated = generate(scenario)  # returns a GenerationResult
 paths = export(generated, out_dir="out")  # writes CSV and ground truth per export options
 paths = export(generated, out_dir="out", include_die_truth=False)  # override per-die truth
+paths = export(
+    generated, out_dir="out", cp_csv_layout="blocks"
+)  # per-wafer multi-block CSV this run
+paths = export(generated, out_dir="out", include_ground_truth=False)  # skip ground truth this run
 
 # Or generate and export one lot at a time; peak memory follows a single lot:
 summary, paths = generate_to_directory(scenario, out_dir="out")

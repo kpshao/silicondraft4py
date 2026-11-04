@@ -9,12 +9,14 @@ many dies a wafer carries. Very large wafers are sampled down to
 from __future__ import annotations
 
 from collections.abc import Iterable
+from dataclasses import dataclass
 from typing import Literal
 
 import numpy as np
 from PySide6.QtCore import QPointF, QRect, QRectF, Qt
-from PySide6.QtGui import QColor, QPainter, QPen, QResizeEvent
+from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen, QResizeEvent
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QGraphicsItem,
     QGraphicsScene,
@@ -46,6 +48,8 @@ from ..binning import (
 from ..catalog import CatalogItem
 from ..dataset import CPWafer, GenerationResult
 from ..exporters.common import format_float
+from ..patterns import pattern_id
+from ..scenario.models import Pattern, Wafer
 from .sampling import sample_indices
 
 ColorMode = Literal["hard_bin", "soft_bin", "item"]
@@ -78,6 +82,134 @@ def item_colour(fraction: float) -> QColor:
     """Map a normalized measurement to a blue-to-red colour along a hue ramp."""
     clamped = min(max(fraction, 0.0), 1.0)
     return QColor.fromHsvF(0.62 * (1.0 - clamped), 0.85, 0.95)
+
+
+@dataclass(frozen=True, slots=True)
+class PatternOverlay:
+    """The spatial extent of one injected pattern active on the current wafer.
+
+    ``inner_radius_mm`` is zero for filled extents; a positive value marks an
+    annulus, matching the pattern's weight field.
+    """
+
+    pattern_id: str
+    kind: str
+    center_mm: tuple[float, float]
+    inner_radius_mm: float
+    outer_radius_mm: float
+
+
+_OVERLAY_COLOURS: tuple[str, ...] = (
+    "#e91e63",
+    "#3f51b5",
+    "#00897b",
+    "#f9a825",
+    "#7b1fa2",
+    "#d84315",
+    "#0277bd",
+    "#558b2f",
+)
+
+
+def pattern_extent(pattern: Pattern, index: int, wafer: Wafer) -> PatternOverlay | None:
+    """Return the drawn extent of one pattern, or ``None`` when it has no geometry."""
+    identifier = pattern_id(index)
+    usable_radius_mm = wafer.diameter_mm / 2 - wafer.edge_exclusion_mm
+
+    if pattern.kind in {"center_high", "center_low", "local_spot"}:
+        if pattern.radius_mm is None:
+            return None
+        return PatternOverlay(
+            identifier,
+            pattern.kind,
+            pattern.center_mm,
+            0.0,
+            pattern.radius_mm,
+        )
+
+    if pattern.kind in {"edge_high", "edge_low"}:
+        if pattern.extent_mm is None:
+            return None
+        return PatternOverlay(
+            identifier,
+            pattern.kind,
+            (0.0, 0.0),
+            max(0.0, usable_radius_mm - pattern.extent_mm),
+            usable_radius_mm,
+        )
+
+    if pattern.kind == "ring":
+        if pattern.radius_mm is None or pattern.width_mm is None:
+            return None
+        return PatternOverlay(
+            identifier,
+            pattern.kind,
+            (0.0, 0.0),
+            max(0.0, pattern.radius_mm - pattern.width_mm),
+            pattern.radius_mm + pattern.width_mm,
+        )
+
+    if pattern.kind == "radial_gradient":
+        return PatternOverlay(
+            identifier,
+            pattern.kind,
+            (0.0, 0.0),
+            0.0,
+            usable_radius_mm,
+        )
+
+    return None
+
+
+class _OverlayLayer(QGraphicsItem):
+    """Draw dashed outlines around the extents of the active patterns."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._paths: tuple[tuple[QColor, QPainterPath], ...] = ()
+        self._bounds = QRectF()
+        self.setZValue(1.0)
+
+    def set_overlays(
+        self,
+        overlays: Iterable[PatternOverlay],
+        wafer_radius_mm: float,
+        margin: float,
+    ) -> None:
+        """Replace the drawn outlines and their scene bounds."""
+        self.prepareGeometryChange()
+        paths: list[tuple[QColor, QPainterPath]] = []
+        for index, overlay in enumerate(overlays):
+            colour = QColor(_OVERLAY_COLOURS[index % len(_OVERLAY_COLOURS)])
+            centre = QPointF(overlay.center_mm[0], -overlay.center_mm[1])
+            path = QPainterPath()
+            path.addEllipse(centre, overlay.outer_radius_mm, overlay.outer_radius_mm)
+            if overlay.inner_radius_mm > 0.0:
+                path.addEllipse(centre, overlay.inner_radius_mm, overlay.inner_radius_mm)
+            paths.append((colour, path))
+        self._paths = tuple(paths)
+        radius = wafer_radius_mm + margin
+        self._bounds = QRectF(-radius, -radius, 2 * radius, 2 * radius)
+        self.update()
+
+    def boundingRect(self) -> QRectF:
+        """The wafer-sized area the outlines can occupy."""
+        return self._bounds
+
+    def paint(
+        self,
+        painter: QPainter,
+        option: QStyleOptionGraphicsItem,
+        widget: QWidget | None = None,
+    ) -> None:
+        """Stroke each pattern's boundary with a distinct dashed colour."""
+        if not self._paths:
+            return
+        width = max(self._bounds.width() * 0.006, 0.8)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        for colour, path in self._paths:
+            painter.setPen(QPen(colour, width, Qt.PenStyle.DashLine))
+            painter.drawPath(path)
 
 
 class _DieLayer(QGraphicsItem):
@@ -147,6 +279,7 @@ class WaferMapView(QGraphicsView):
         self.setScene(self._scene)
         self._die_layer = _DieLayer()
         self._scene.addItem(self._die_layer)
+        self._overlay_layer = _OverlayLayer()
         self.setRenderHint(QPainter.RenderHint.Antialiasing)
         self.setBackgroundBrush(QColor("#fafafa"))
         self._scene_rect = QRectF()
@@ -162,6 +295,8 @@ class WaferMapView(QGraphicsView):
         self._item_min = 0.0
         self._item_max = 0.0
         self._render_indices = np.empty(0, dtype=np.int64)
+        self._overlay_enabled = False
+        self._overlays: tuple[PatternOverlay, ...] = ()
 
     # -- read-only state ----------------------------------------------------
 
@@ -213,6 +348,23 @@ class WaferMapView(QGraphicsView):
         wafer = self.wafer
         return wafer is not None and self.rendered_die_count < wafer.die_count
 
+    @property
+    def ground_truth_overlay(self) -> bool:
+        """Whether pattern extents are drawn over the dies."""
+        return self._overlay_enabled
+
+    @property
+    def pattern_overlays(self) -> tuple[PatternOverlay, ...]:
+        """Extents of the patterns active on the current wafer."""
+        return self._overlays
+
+    @property
+    def overlay_text(self) -> str:
+        """A short description of the visible pattern overlays."""
+        if not self._overlay_enabled or not self._overlays:
+            return ""
+        return ", ".join(f"{overlay.pattern_id} ({overlay.kind})" for overlay in self._overlays)
+
     # -- population ---------------------------------------------------------
 
     def set_result(self, result: GenerationResult | None) -> None:
@@ -263,6 +415,13 @@ class WaferMapView(QGraphicsView):
             self._item_id = item_id
             self._rebuild()
         return True
+
+    def set_ground_truth_overlay(self, enabled: bool) -> None:
+        """Show or hide the injected-pattern extents on the wafer map."""
+        if enabled == self._overlay_enabled:
+            return
+        self._overlay_enabled = enabled
+        self._sync_overlay_layer()
 
     # -- per-die facts ------------------------------------------------------
 
@@ -384,10 +543,34 @@ class WaferMapView(QGraphicsView):
             bounds = rect if bounds.isNull() else bounds.united(rect)
         self._die_layer.set_cells(batches.values(), bounds, tooltips)
         margin = max(self._wafer_radius_mm * 0.02, 1.0)
+        self._overlays = self._active_pattern_overlays(wafer)
+        self._overlay_layer.set_overlays(self._overlays, self._wafer_radius_mm, margin)
         radius = self._wafer_radius_mm + margin
         self._scene_rect = QRectF(-radius, -radius, 2 * radius, 2 * radius)
         self._scene.setSceneRect(self._scene_rect)
+        self._sync_overlay_layer()
         self._fit()
+
+    def _active_pattern_overlays(self, wafer: CPWafer | None) -> tuple[PatternOverlay, ...]:
+        result = self._result
+        if result is None or wafer is None:
+            return ()
+        active = set(wafer.pattern_hits)
+        overlays: list[PatternOverlay] = []
+        for index, pattern in enumerate(result.scenario.patterns):
+            if pattern_id(index) not in active:
+                continue
+            extent = pattern_extent(pattern, index, result.scenario.wafer)
+            if extent is not None:
+                overlays.append(extent)
+        return tuple(overlays)
+
+    def _sync_overlay_layer(self) -> None:
+        visible = self._overlay_enabled and bool(self._overlays)
+        if visible and self._overlay_layer.scene() is None:
+            self._scene.addItem(self._overlay_layer)
+        elif not visible and self._overlay_layer.scene() is not None:
+            self._scene.removeItem(self._overlay_layer)
 
     def _update_item_range(self, wafer: CPWafer | None) -> None:
         if wafer is None or self._item_id is None or self._item_id not in wafer.values:
@@ -429,7 +612,9 @@ class WaferMapPanel(QWidget):
         self.wafer_combo = QComboBox(self)
         self.color_combo = QComboBox(self)
         self.item_combo = QComboBox(self)
+        self.overlay_checkbox = QCheckBox(self.tr("Ground truth"), self)
         self.legend_label = QLabel(self)
+        self.overlay_label = QLabel(self)
 
         for label, mode in (
             (self.tr("Hard bin"), "hard_bin"),
@@ -441,6 +626,7 @@ class WaferMapPanel(QWidget):
         self.wafer_combo.currentIndexChanged.connect(self._on_wafer_changed)
         self.color_combo.currentIndexChanged.connect(self._on_color_mode_changed)
         self.item_combo.currentIndexChanged.connect(self._on_item_changed)
+        self.overlay_checkbox.toggled.connect(self._on_overlay_toggled)
 
         controls = QHBoxLayout()
         controls.addWidget(QLabel(self.tr("Wafer:"), self))
@@ -448,7 +634,9 @@ class WaferMapPanel(QWidget):
         controls.addWidget(QLabel(self.tr("Colour by:"), self))
         controls.addWidget(self.color_combo)
         controls.addWidget(self.item_combo)
+        controls.addWidget(self.overlay_checkbox)
         controls.addStretch(1)
+        controls.addWidget(self.overlay_label)
         controls.addWidget(self.legend_label)
 
         layout = QVBoxLayout(self)
@@ -502,6 +690,12 @@ class WaferMapPanel(QWidget):
         self._sync_controls()
         return True
 
+    def set_ground_truth_overlay(self, enabled: bool) -> None:
+        """Show or hide the injected-pattern extents."""
+        self.overlay_checkbox.setChecked(enabled)
+        self.map_view.set_ground_truth_overlay(enabled)
+        self._sync_controls()
+
     # -- internals ----------------------------------------------------------
 
     def _on_wafer_changed(self, index: int) -> None:
@@ -518,6 +712,10 @@ class WaferMapPanel(QWidget):
         item_id = self.item_combo.itemData(index)
         if isinstance(item_id, str):
             self.map_view.set_item(item_id)
+        self._sync_controls()
+
+    def _on_overlay_toggled(self, checked: bool) -> None:
+        self.map_view.set_ground_truth_overlay(checked)
         self._sync_controls()
 
     def _sync_controls(self) -> None:
@@ -539,3 +737,10 @@ class WaferMapPanel(QWidget):
         finally:
             self.wafer_combo.blockSignals(False)
         self.legend_label.setText(self.map_view.legend_text if self.map_view.wafer else "")
+        self.overlay_checkbox.blockSignals(True)
+        try:
+            self.overlay_checkbox.setChecked(self.map_view.ground_truth_overlay)
+        finally:
+            self.overlay_checkbox.blockSignals(False)
+        self.overlay_checkbox.setEnabled(bool(self.map_view.pattern_overlays))
+        self.overlay_label.setText(self.map_view.overlay_text)
