@@ -33,10 +33,12 @@ from ..scenario import (
     save_scenario,
     scenario_from_preset,
 )
+from .correlation import CorrelationPanel
 from .distribution import DistributionPanel
 from .export_dialog import ExportDialog
 from .result_table import ResultsPanel
 from .scenario_tree import ScenarioTree
+from .trend import TrendPanel
 from .wafer_map import WaferMapPanel
 from .worker import GenerateFn, GenerationWorker
 
@@ -261,10 +263,14 @@ class MainWindow(QMainWindow):
 
         self.wafer_map_panel = WaferMapPanel(self)
         self.distribution_panel = DistributionPanel(self)
+        self.correlation_panel = CorrelationPanel(self)
+        self.trend_panel = TrendPanel(self)
         self.results_panel = ResultsPanel(self)
         self.preview_tabs = QTabWidget(self)
         self.preview_tabs.addTab(self.wafer_map_panel, self.tr("Wafer Map"))
         self.preview_tabs.addTab(self.distribution_panel, self.tr("Distribution"))
+        self.preview_tabs.addTab(self.correlation_panel, self.tr("Correlation"))
+        self.preview_tabs.addTab(self.trend_panel, self.tr("Trend"))
         self.preview_tabs.addTab(self.results_panel, self.tr("Results"))
         self.preview_tabs.addTab(self.issues_panel, self.tr("Issues"))
 
@@ -475,6 +481,8 @@ class MainWindow(QMainWindow):
     def _set_preview_result(self, result: GenerationResult | None) -> None:
         self.wafer_map_panel.set_result(result)
         self.distribution_panel.set_result(result)
+        self.correlation_panel.set_result(result)
+        self.trend_panel.set_result(result)
         self.results_panel.set_result(result)
 
     def _update_actions(self) -> None:
