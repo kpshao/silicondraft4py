@@ -6,6 +6,7 @@ from pathlib import Path
 
 from ..binning import HARD_BIN_DEFINITIONS, SOFT_BIN_DEFINITIONS, item_passed
 from ..dataset import CPLot, CPWafer, GenerationResult, WatLot
+from ..scenario.models import CsvLayout
 from .common import (
     CsvWriter,
 )
@@ -104,13 +105,15 @@ _WAT_HEADER = (
 )
 
 
-def export_cp_csv(result: GenerationResult, out_dir: Path) -> tuple[Path, ...]:
-    """Write CP CSV files in the layout selected by ``export.cp_csv_layout``."""
-    layout = result.scenario.export.cp_csv_layout
+def export_cp_csv(
+    result: GenerationResult, out_dir: Path, *, layout: CsvLayout | None = None
+) -> tuple[Path, ...]:
+    """Write CP CSV files in ``layout``, defaulting to ``export.cp_csv_layout``."""
+    selected = result.scenario.export.cp_csv_layout if layout is None else layout
     paths: list[Path] = []
-    if layout in ("blocks", "both"):
+    if selected in ("blocks", "both"):
         paths.extend(export_cp_csv_blocks(result, out_dir))
-    if layout in ("long", "both"):
+    if selected in ("long", "both"):
         paths.extend(export_cp_csv_long(result, out_dir))
     return tuple(paths)
 

@@ -22,6 +22,19 @@ def scenario_document(scenario: Scenario) -> dict[str, Any]:
     return scenario.model_dump(mode="json")
 
 
+def scenario_yaml(scenario: Scenario, *, include_preset: bool = True) -> str:
+    """Return the fully expanded scenario as YAML text.
+
+    ``include_preset=False`` writes ``preset: null`` so a later load does not
+    re-merge preset defaults over the expanded fields. The YAML editor uses
+    this mode so an edit that deletes a preset-derived section is authoritative.
+    """
+    document = scenario_document(scenario)
+    if not include_preset:
+        document["preset"] = None
+    return yaml.safe_dump(document, sort_keys=False, allow_unicode=True)
+
+
 def save_scenario(scenario: Scenario, path: str | PathLike[str]) -> Path:
     """Validate ``scenario`` and write it as fully expanded YAML.
 
@@ -33,8 +46,7 @@ def save_scenario(scenario: Scenario, path: str | PathLike[str]) -> Path:
     if not validation.ok:
         raise ScenarioError(validation.issues)
     file_path = Path(path)
-    document = scenario_document(scenario)
-    text = yaml.safe_dump(document, sort_keys=False, allow_unicode=True)
+    text = scenario_yaml(scenario)
     try:
         file_path.write_text(text, encoding="utf-8")
     except OSError as exc:
@@ -42,4 +54,4 @@ def save_scenario(scenario: Scenario, path: str | PathLike[str]) -> Path:
     return file_path
 
 
-__all__ = ["save_scenario", "scenario_document"]
+__all__ = ["save_scenario", "scenario_document", "scenario_yaml"]

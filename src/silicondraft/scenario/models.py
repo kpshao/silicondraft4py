@@ -31,6 +31,8 @@ PatternScope = Literal["lot", "wafer"]
 PatternCombine = Literal["add", "multiply"]
 ExportEncoding = Literal["utf-8", "utf-8-sig"]
 CsvLayout = Literal["blocks", "long", "both"]
+#: CP CSV layouts accepted by the scenario schema and the exporters.
+CSV_LAYOUTS: tuple[CsvLayout, ...] = ("long", "blocks", "both")
 WaferDiameterMm = Literal[150, 200, 300]
 WatSiteCount = Literal[5, 9, 13, 21]
 

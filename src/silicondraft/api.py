@@ -54,7 +54,7 @@ from .latent import (
     wat_latent,
 )
 from .patterns import apply_pattern, select_yield_failure_item
-from .scenario.models import Lots, Scenario
+from .scenario.models import CSV_LAYOUTS, CsvLayout, Lots, Scenario
 from .scenario.validation import validate_scenario_model
 
 _TAG_LOT_FACTOR = 0x10
@@ -172,22 +172,33 @@ def export(
     formats: Sequence[str] = ("csv",),
     *,
     include_die_truth: bool | None = None,
+    cp_csv_layout: CsvLayout | None = None,
+    include_ground_truth: bool | None = None,
 ) -> tuple[Path, ...]:
     """Export a generation result and return the paths written.
 
-    ``include_die_truth`` overrides ``export.include_die_truth`` for this run;
-    the CLI's ``--no-die-truth`` passes ``False``. The manifest itself is still
-    written when ``export.ground_truth`` is enabled.
+    The keyword overrides apply to this run only. ``include_die_truth``
+    overrides ``export.include_die_truth`` (the CLI's ``--no-die-truth``
+    passes ``False``) while the manifest is still written when ground truth
+    is enabled. ``cp_csv_layout`` overrides ``export.cp_csv_layout`` and
+    ``include_ground_truth`` overrides ``export.ground_truth``; the GUI export
+    dialog uses them to offer per-run choices without rewriting the scenario.
     """
     _check_formats(formats)
+    _check_cp_csv_layout(cp_csv_layout)
     out = Path(out_dir)
     paths: list[Path] = []
     try:
         if result.scenario.export.cp_csv:
-            paths.extend(export_cp_csv(result, out))
+            paths.extend(export_cp_csv(result, out, layout=cp_csv_layout))
         if result.scenario.export.wat_csv:
             paths.extend(export_wat_csv(result, out))
-        if result.scenario.export.ground_truth:
+        write_ground_truth = (
+            result.scenario.export.ground_truth
+            if include_ground_truth is None
+            else include_ground_truth
+        )
+        if write_ground_truth:
             write_die_truth = (
                 result.scenario.export.include_die_truth
                 if include_die_truth is None
@@ -472,6 +483,12 @@ def _check_formats(formats: Sequence[str]) -> None:
     unsupported = sorted({format_name for format_name in requested if format_name != "csv"})
     if unsupported:
         raise ExportError(f"unsupported export format(s): {', '.join(unsupported)}; supported: csv")
+
+
+def _check_cp_csv_layout(layout: str | None) -> None:
+    if layout is not None and layout not in CSV_LAYOUTS:
+        supported = ", ".join(CSV_LAYOUTS)
+        raise ExportError(f"unsupported CP CSV layout: {layout}; supported: {supported}")
 
 
 def _timeline_start(scenario: Scenario, generated_at: datetime) -> datetime:

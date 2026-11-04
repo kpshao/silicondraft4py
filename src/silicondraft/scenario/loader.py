@@ -48,8 +48,7 @@ def read_scenario_data(path: str | PathLike[str]) -> object:
     """Read a YAML file and return its raw document."""
     file_path = Path(path)
     try:
-        with file_path.open("r", encoding="utf-8") as stream:
-            data: object = yaml.safe_load(stream)
+        text = file_path.read_text(encoding="utf-8")
     except FileNotFoundError as exc:
         _raise_scenario_error(
             "FILE_NOT_FOUND",
@@ -71,6 +70,13 @@ def read_scenario_data(path: str | PathLike[str]) -> object:
             f"cannot read scenario file {file_path}: {exc}",
             exc,
         )
+    return parse_yaml_document(text)
+
+
+def parse_yaml_document(text: str) -> object:
+    """Parse scenario YAML text into a raw document with locatable parse errors."""
+    try:
+        data: object = yaml.safe_load(text)
     except yaml.MarkedYAMLError as exc:
         mark = exc.problem_mark
         if mark is None:
@@ -117,6 +123,11 @@ def parse_scenario(data: object) -> Scenario:
         raise ScenarioError(issues_from_validation_error(exc)) from exc
 
 
+def parse_scenario_text(text: str) -> Scenario:
+    """Parse and structurally validate a scenario YAML document held in memory."""
+    return parse_scenario(parse_yaml_document(text))
+
+
 def issues_from_validation_error(exc: ValidationError) -> tuple[ValidationIssue, ...]:
     """Convert Pydantic errors into stable, locatable issues."""
     issues: list[ValidationIssue] = []
@@ -145,5 +156,7 @@ def _format_location(loc: Sequence[str | int]) -> str:
 __all__ = [
     "issues_from_validation_error",
     "parse_scenario",
+    "parse_scenario_text",
+    "parse_yaml_document",
     "read_scenario_data",
 ]

@@ -9,6 +9,7 @@ from .validation import (
     load_scenario,
     scenario_from_preset,
     validate_scenario,
+    validate_scenario_text,
 )
 from .writer import save_scenario
 
@@ -22,4 +23,5 @@ __all__ = [
     "scenario_from_preset",
     "scenario_schema",
     "validate_scenario",
+    "validate_scenario_text",
 ]

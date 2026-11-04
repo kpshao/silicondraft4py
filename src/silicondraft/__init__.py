@@ -31,6 +31,7 @@ from .scenario import (
     scenario_from_preset,
     scenario_schema,
     validate_scenario,
+    validate_scenario_text,
 )
 
 try:
@@ -68,4 +69,5 @@ __all__ = [
     "scenario_from_preset",
     "scenario_schema",
     "validate_scenario",
+    "validate_scenario_text",
 ]

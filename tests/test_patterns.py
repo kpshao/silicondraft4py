@@ -208,3 +208,39 @@ def test_both_targets_do_not_double_apply_the_yield_item(tmp_path: Path) -> None
     np.testing.assert_array_equal(
         yield_only.lots[0].wafers[0].passed, both.lots[0].wafers[0].passed
     )
+
+
+def test_pattern_extent_tracks_the_pattern_centre() -> None:
+    from silicondraft.patterns import pattern_extent
+    from silicondraft.scenario.models import Pattern, Wafer
+
+    wafer = Wafer(diameter_mm=150, edge_exclusion_mm=3.0)
+    ring = Pattern(
+        kind="ring",
+        target_item="CP_VTHN",
+        amplitude=0.2,
+        radius_mm=30.0,
+        width_mm=5.0,
+        center_mm=(10.0, -5.0),
+    )
+    edge = Pattern(
+        kind="edge_high",
+        target_item="CP_VTHN",
+        amplitude=0.2,
+        extent_mm=10.0,
+        center_mm=(5.0, 5.0),
+    )
+
+    ring_extent = pattern_extent(ring, 0, wafer)
+    edge_extent = pattern_extent(edge, 1, wafer)
+
+    assert ring_extent is not None
+    assert ring_extent.pattern_id == "pattern_1"
+    assert ring_extent.center_mm == (10.0, -5.0)
+    assert ring_extent.inner_radius_mm == pytest.approx(25.0)
+    assert ring_extent.outer_radius_mm == pytest.approx(35.0)
+    assert edge_extent is not None
+    assert edge_extent.pattern_id == "pattern_2"
+    assert edge_extent.center_mm == (5.0, 5.0)
+    assert edge_extent.inner_radius_mm == pytest.approx(62.0)
+    assert edge_extent.outer_radius_mm == pytest.approx(72.0)

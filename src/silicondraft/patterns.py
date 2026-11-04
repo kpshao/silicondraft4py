@@ -56,6 +56,61 @@ def pattern_id(index: int) -> str:
     return f"pattern_{index + 1}"
 
 
+@dataclass(frozen=True, slots=True)
+class PatternExtent:
+    """The spatial extent of one pattern's weight field, in wafer millimetres.
+
+    ``inner_radius_mm`` is zero for filled extents; a positive value marks an
+    annulus. The centre matches the one used by :func:`spatial_weight`, so an
+    overlay drawn from this type lines up with the injected pattern.
+    """
+
+    pattern_id: str
+    kind: str
+    center_mm: tuple[float, float]
+    inner_radius_mm: float
+    outer_radius_mm: float
+
+
+def pattern_extent(pattern: Pattern, index: int, wafer: Wafer) -> PatternExtent | None:
+    """Return where a pattern's weight field is non-zero, or ``None`` without geometry."""
+    identifier = pattern_id(index)
+    usable_radius_mm = wafer.diameter_mm / 2 - wafer.edge_exclusion_mm
+    centre = pattern.center_mm
+
+    if pattern.kind in {"center_high", "center_low", "local_spot"}:
+        if pattern.radius_mm is None:
+            return None
+        return PatternExtent(identifier, pattern.kind, centre, 0.0, pattern.radius_mm)
+
+    if pattern.kind in {"edge_high", "edge_low"}:
+        if pattern.extent_mm is None:
+            return None
+        return PatternExtent(
+            identifier,
+            pattern.kind,
+            centre,
+            max(0.0, usable_radius_mm - pattern.extent_mm),
+            usable_radius_mm,
+        )
+
+    if pattern.kind == "ring":
+        if pattern.radius_mm is None or pattern.width_mm is None:
+            return None
+        return PatternExtent(
+            identifier,
+            pattern.kind,
+            centre,
+            max(0.0, pattern.radius_mm - pattern.width_mm),
+            pattern.radius_mm + pattern.width_mm,
+        )
+
+    if pattern.kind == "radial_gradient":
+        return PatternExtent(identifier, pattern.kind, centre, 0.0, usable_radius_mm)
+
+    return None
+
+
 def select_yield_failure_item(items: Iterable[CatalogItem]) -> CatalogItem | None:
     """Return the functional CP item a yield pattern should fail."""
     enabled = {item.id: item for item in items if item.enabled and item.phase == "CP"}

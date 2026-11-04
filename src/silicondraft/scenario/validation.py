@@ -8,7 +8,7 @@ from ..catalog import Catalog, can_fail, resolve_catalog
 from ..errors import ScenarioError, ValidationIssue
 from ..geometry import count_dies
 from ..latent import DEFAULT_LINKAGE_ITEM_IDS, LINKABLE_DISTRIBUTIONS, WAT_FACTOR
-from .loader import parse_scenario, read_scenario_data
+from .loader import parse_scenario, parse_scenario_text, read_scenario_data
 from .models import (
     PATTERN_REQUIRED_EXTENTS,
     PATTERN_SIGNED_AMPLITUDE_KINDS,
@@ -67,6 +67,15 @@ def load_scenario(path: str | PathLike[str]) -> Scenario:
     if scenario is None:
         raise ScenarioError(result.issues)
     return scenario
+
+
+def validate_scenario_text(text: str) -> ValidationResult:
+    """Validate scenario YAML held in memory and return locatable issues."""
+    try:
+        scenario = parse_scenario_text(text)
+    except ScenarioError as exc:
+        return ValidationResult(ok=False, issues=exc.issues, summary=None)
+    return validate_scenario_model(scenario)
 
 
 def _load_and_validate(
