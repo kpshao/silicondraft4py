@@ -1,6 +1,7 @@
 """Tests for the GUI correlation scatter and lot/wafer trend previews."""
 
 from datetime import UTC, datetime
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -399,13 +400,13 @@ def test_trend_panel_switches_between_lot_and_wafer_yield(qtbot: QtBot) -> None:
 
     assert panel.metric_keys == ("yield", "WAT_VTN|CP_VTHN")
     assert panel.metric_key == "yield"
-    assert panel.view_mode == "wafer"
-    assert panel.labels == (
+    assert panel.view_combo.currentData() == "wafer"
+    assert list(panel.labels) == [
         "TEST55-L001 / W01",
         "TEST55-L001 / W02",
         "TEST55-L002 / W01",
         "TEST55-L002 / W02",
-    )
+    ]
     assert len(panel.series) == 1
     assert panel.series[0].name == "Yield"
     assert panel.series[0].values == pytest.approx([0.5, 1.0, 0.25, 0.75])
@@ -416,7 +417,7 @@ def test_trend_panel_switches_between_lot_and_wafer_yield(qtbot: QtBot) -> None:
     assert panel.set_view_mode("lot")
 
     assert panel.view_mode == "lot"
-    assert panel.labels == ("TEST55-L001", "TEST55-L002")
+    assert list(panel.labels) == ["TEST55-L001", "TEST55-L002"]
     assert panel.series[0].values == pytest.approx([0.75, 0.5])
     assert panel.point_count == 2
     assert panel.empty_message is None
@@ -434,7 +435,7 @@ def test_trend_panel_shows_empty_state_for_a_single_lot(qtbot: QtBot) -> None:
 
     assert panel.set_view_mode("lot")
 
-    assert panel.labels == ()
+    assert list(panel.labels) == []
     assert panel.series == ()
     assert panel.point_count == 0
     assert panel.empty_message == "At least two lots are required for a lot-level trend."
@@ -470,7 +471,7 @@ def test_trend_panel_plots_linkage_pair_means_by_lot_and_wafer(qtbot: QtBot) -> 
 
     assert panel.set_view_mode("lot")
 
-    assert panel.labels == ("TEST55-L001", "TEST55-L002")
+    assert list(panel.labels) == ["TEST55-L001", "TEST55-L002"]
     assert panel.series[0].values == pytest.approx([2.5, 6.5])
     assert panel.series[1].values == pytest.approx([35.0, 115.0])
     assert panel.series[0].plot_values == pytest.approx([-1.0, 1.0])
@@ -482,12 +483,12 @@ def test_trend_panel_plots_linkage_pair_means_by_lot_and_wafer(qtbot: QtBot) -> 
 
 
 def _write_gui_scenario(
-    tmp_path,
+    tmp_path: Path,
     *,
     lot_count: int = 2,
     wafers_per_lot: int = 1,
     preset: str | None = None,
-) -> object:
+) -> Path:
     import yaml
 
     document = {
@@ -515,7 +516,7 @@ def _write_gui_scenario(
     return path
 
 
-def test_generation_fills_correlation_and_trend_tabs(qtbot: QtBot, tmp_path) -> None:
+def test_generation_fills_correlation_and_trend_tabs(qtbot: QtBot, tmp_path: Path) -> None:
     from silicondraft.gui.main_window import MainWindow
 
     window = MainWindow()
@@ -551,7 +552,7 @@ def test_generation_fills_correlation_and_trend_tabs(qtbot: QtBot, tmp_path) -> 
     trend = window.trend_panel
     assert trend.point_count == 2
     assert trend.set_view_mode("lot")
-    assert trend.labels == tuple(lot.lot_id for lot in result.lots)
+    assert list(trend.labels) == [lot.lot_id for lot in result.lots]
     assert trend.series[0].values == pytest.approx([lot.yield_fraction for lot in result.lots])
 
     other = tmp_path / "other"
@@ -561,7 +562,7 @@ def test_generation_fills_correlation_and_trend_tabs(qtbot: QtBot, tmp_path) -> 
     assert window.trend_panel.point_count == 0
 
 
-def test_trend_preset_drives_the_lot_and_wafer_views(qtbot: QtBot, tmp_path) -> None:
+def test_trend_preset_drives_the_lot_and_wafer_views(qtbot: QtBot, tmp_path: Path) -> None:
     from silicondraft.gui.main_window import MainWindow
 
     window = MainWindow()
@@ -585,7 +586,7 @@ def test_trend_preset_drives_the_lot_and_wafer_views(qtbot: QtBot, tmp_path) -> 
     assert trend.labels[25] == f"{result.lots[1].lot_id} / {result.lots[1].wafers[0].wafer_id}"
 
     assert trend.set_view_mode("lot")
-    assert trend.labels == tuple(lot.lot_id for lot in result.lots)
+    assert list(trend.labels) == [lot.lot_id for lot in result.lots]
     assert trend.series[0].values == pytest.approx([lot.yield_fraction for lot in result.lots])
 
     assert trend.set_view_mode("wafer")
