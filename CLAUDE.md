@@ -1,5 +1,9 @@
 ## Agent skills
 
+### Checks
+
+Before pushing, run `make check`; it mirrors `.github/workflows/ci.yml`.
+
 ### Issue tracker
 
 Issues and specs live as GitHub issues on `kpshao/silicondraft4py`, managed with the `gh` CLI. See `docs/agents/issue-tracker.md`.
@@ -13,6 +17,8 @@ The five canonical triage roles map to same-named labels: `needs-triage`, `needs
 Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
 
 V1 design appendix: `docs/design/v1-spec.md`; test item catalog: `docs/design/v1-test-item-catalog.md`. Issue #1 is canonical when they disagree.
+
+GUI conventions: use Qt `tr()` and keep the GUI an adapter over the engine (no duplicated pairing/statistics); see `docs/adr/0003-engine-gui-separation-and-i18n.md`. Preview tabs: `docs/design/v1-spec.md` §4.8.
 
 ### Issue and PR descriptions
 
