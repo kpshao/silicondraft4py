@@ -54,7 +54,7 @@ from .latent import (
     wat_latent,
 )
 from .patterns import apply_pattern, select_yield_failure_item
-from .scenario.models import Lots, Scenario
+from .scenario.models import CSV_LAYOUTS, CsvLayout, Lots, Scenario
 from .scenario.validation import validate_scenario_model
 
 _TAG_LOT_FACTOR = 0x10
@@ -172,7 +172,7 @@ def export(
     formats: Sequence[str] = ("csv",),
     *,
     include_die_truth: bool | None = None,
-    cp_csv_layout: str | None = None,
+    cp_csv_layout: CsvLayout | None = None,
     include_ground_truth: bool | None = None,
 ) -> tuple[Path, ...]:
     """Export a generation result and return the paths written.
@@ -486,8 +486,9 @@ def _check_formats(formats: Sequence[str]) -> None:
 
 
 def _check_cp_csv_layout(layout: str | None) -> None:
-    if layout is not None and layout not in ("long", "blocks", "both"):
-        raise ExportError(f"unsupported CP CSV layout: {layout}; supported: long, blocks, both")
+    if layout is not None and layout not in CSV_LAYOUTS:
+        supported = ", ".join(CSV_LAYOUTS)
+        raise ExportError(f"unsupported CP CSV layout: {layout}; supported: {supported}")
 
 
 def _timeline_start(scenario: Scenario, generated_at: datetime) -> datetime:

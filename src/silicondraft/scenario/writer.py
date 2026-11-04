@@ -22,9 +22,16 @@ def scenario_document(scenario: Scenario) -> dict[str, Any]:
     return scenario.model_dump(mode="json")
 
 
-def scenario_yaml(scenario: Scenario) -> str:
-    """Return the fully expanded scenario as YAML text."""
+def scenario_yaml(scenario: Scenario, *, include_preset: bool = True) -> str:
+    """Return the fully expanded scenario as YAML text.
+
+    ``include_preset=False`` writes ``preset: null`` so a later load does not
+    re-merge preset defaults over the expanded fields. The YAML editor uses
+    this mode so an edit that deletes a preset-derived section is authoritative.
+    """
     document = scenario_document(scenario)
+    if not include_preset:
+        document["preset"] = None
     return yaml.safe_dump(document, sort_keys=False, allow_unicode=True)
 
 

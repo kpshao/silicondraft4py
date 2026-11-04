@@ -11,7 +11,7 @@ from .validation import (
     validate_scenario,
     validate_scenario_text,
 )
-from .writer import save_scenario, scenario_yaml
+from .writer import save_scenario
 
 __all__ = [
     "PRESET_NAMES",
@@ -22,7 +22,6 @@ __all__ = [
     "save_scenario",
     "scenario_from_preset",
     "scenario_schema",
-    "scenario_yaml",
     "validate_scenario",
     "validate_scenario_text",
 ]

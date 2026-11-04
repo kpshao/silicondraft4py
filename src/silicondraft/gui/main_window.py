@@ -33,6 +33,7 @@ from ..scenario import (
     save_scenario,
     scenario_from_preset,
 )
+from ..scenario.models import CsvLayout
 from .correlation import CorrelationPanel
 from .distribution import DistributionPanel
 from .export_dialog import ExportDialog
@@ -226,7 +227,7 @@ class MainWindow(QMainWindow):
         self,
         out_dir: str | Path,
         *,
-        cp_csv_layout: str | None = None,
+        cp_csv_layout: CsvLayout | None = None,
         include_ground_truth: bool | None = None,
         include_die_truth: bool | None = None,
     ) -> bool:

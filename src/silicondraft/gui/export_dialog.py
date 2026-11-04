@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..scenario.models import CsvLayout, ExportOptions
+from ..scenario.models import CSV_LAYOUTS, CsvLayout, ExportOptions
 
 
 class ExportDialog(QDialog):
@@ -108,7 +108,7 @@ class ExportDialog(QDialog):
     def cp_csv_layout(self) -> CsvLayout:
         """The CP CSV layout selected for this run."""
         data = self.layout_combo.currentData()
-        if data in ("long", "blocks", "both"):
+        if data in CSV_LAYOUTS:
             return cast(CsvLayout, data)
         return "long"
 

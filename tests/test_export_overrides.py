@@ -1,11 +1,13 @@
 """Tests for the per-run export overrides used by the GUI dialog."""
 
 from pathlib import Path
+from typing import cast
 
 import pytest
 import yaml
 
 from silicondraft import ExportError, export, generate, load_scenario
+from silicondraft.scenario.models import CsvLayout
 
 
 def _write_scenario(tmp_path: Path) -> Path:
@@ -56,6 +58,6 @@ def test_export_rejects_an_unknown_cp_csv_layout(tmp_path: Path) -> None:
     out_dir = tmp_path / "out"
 
     with pytest.raises(ExportError, match="unsupported CP CSV layout"):
-        export(result, out_dir, cp_csv_layout="spreadsheet")
+        export(result, out_dir, cp_csv_layout=cast(CsvLayout, "spreadsheet"))
 
     assert not out_dir.exists()

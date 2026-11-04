@@ -222,12 +222,16 @@ from silicondraft import (
     load_scenario,
     save_scenario,
     validate_scenario,
+    validate_scenario_text,
 )
 
 result = validate_scenario("scenario.yaml")
 if not result.ok:
     for issue in result.issues:
         print(issue.path, issue.code, issue.message)
+
+# 校验内存中的 YAML 文本（GUI YAML 编辑器使用同一入口）：
+text_result = validate_scenario_text("schema_version: 1\nproduct: {name: GEN55LOGIC}\nseed: 7\n")
 
 scenario = load_scenario("scenario.yaml")  # 结构 + 语义校验通过后返回类型化场景
 generated = generate(scenario)  # 返回 GenerationResult
@@ -494,6 +498,7 @@ from silicondraft import (
     load_scenario,
     save_scenario,
     validate_scenario,
+    validate_scenario_text,
 )
 
 result = validate_scenario("scenario.yaml")
@@ -501,9 +506,12 @@ if not result.ok:
     for issue in result.issues:
         print(issue.path, issue.code, issue.message)
 
+# Validate YAML held in memory (the GUI YAML editor uses the same entry point):
+text_result = validate_scenario_text("schema_version: 1\nproduct: {name: GEN55LOGIC}\nseed: 7\n")
+
 scenario = load_scenario(
     "scenario.yaml"
-)  # returns a typed scenario after structural + semantic validation
+)  # returns a typed scenario after structural and semantic validation
 generated = generate(scenario)  # returns a GenerationResult
 paths = export(generated, out_dir="out")  # writes CSV and ground truth per export options
 paths = export(generated, out_dir="out", include_die_truth=False)  # override per-die truth

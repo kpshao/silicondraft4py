@@ -9,7 +9,6 @@ many dies a wafer carries. Very large wafers are sampled down to
 from __future__ import annotations
 
 from collections.abc import Iterable
-from dataclasses import dataclass
 from typing import Literal
 
 import numpy as np
@@ -48,8 +47,7 @@ from ..binning import (
 from ..catalog import CatalogItem
 from ..dataset import CPWafer, GenerationResult
 from ..exporters.common import format_float
-from ..patterns import pattern_id
-from ..scenario.models import Pattern, Wafer
+from ..patterns import PatternExtent, pattern_extent, pattern_id
 from .sampling import sample_indices
 
 ColorMode = Literal["hard_bin", "soft_bin", "item"]
@@ -84,21 +82,6 @@ def item_colour(fraction: float) -> QColor:
     return QColor.fromHsvF(0.62 * (1.0 - clamped), 0.85, 0.95)
 
 
-@dataclass(frozen=True, slots=True)
-class PatternOverlay:
-    """The spatial extent of one injected pattern active on the current wafer.
-
-    ``inner_radius_mm`` is zero for filled extents; a positive value marks an
-    annulus, matching the pattern's weight field.
-    """
-
-    pattern_id: str
-    kind: str
-    center_mm: tuple[float, float]
-    inner_radius_mm: float
-    outer_radius_mm: float
-
-
 _OVERLAY_COLOURS: tuple[str, ...] = (
     "#e91e63",
     "#3f51b5",
@@ -109,56 +92,6 @@ _OVERLAY_COLOURS: tuple[str, ...] = (
     "#0277bd",
     "#558b2f",
 )
-
-
-def pattern_extent(pattern: Pattern, index: int, wafer: Wafer) -> PatternOverlay | None:
-    """Return the drawn extent of one pattern, or ``None`` when it has no geometry."""
-    identifier = pattern_id(index)
-    usable_radius_mm = wafer.diameter_mm / 2 - wafer.edge_exclusion_mm
-
-    if pattern.kind in {"center_high", "center_low", "local_spot"}:
-        if pattern.radius_mm is None:
-            return None
-        return PatternOverlay(
-            identifier,
-            pattern.kind,
-            pattern.center_mm,
-            0.0,
-            pattern.radius_mm,
-        )
-
-    if pattern.kind in {"edge_high", "edge_low"}:
-        if pattern.extent_mm is None:
-            return None
-        return PatternOverlay(
-            identifier,
-            pattern.kind,
-            (0.0, 0.0),
-            max(0.0, usable_radius_mm - pattern.extent_mm),
-            usable_radius_mm,
-        )
-
-    if pattern.kind == "ring":
-        if pattern.radius_mm is None or pattern.width_mm is None:
-            return None
-        return PatternOverlay(
-            identifier,
-            pattern.kind,
-            (0.0, 0.0),
-            max(0.0, pattern.radius_mm - pattern.width_mm),
-            pattern.radius_mm + pattern.width_mm,
-        )
-
-    if pattern.kind == "radial_gradient":
-        return PatternOverlay(
-            identifier,
-            pattern.kind,
-            (0.0, 0.0),
-            0.0,
-            usable_radius_mm,
-        )
-
-    return None
 
 
 class _OverlayLayer(QGraphicsItem):
@@ -172,7 +105,7 @@ class _OverlayLayer(QGraphicsItem):
 
     def set_overlays(
         self,
-        overlays: Iterable[PatternOverlay],
+        overlays: Iterable[PatternExtent],
         wafer_radius_mm: float,
         margin: float,
     ) -> None:
@@ -296,7 +229,7 @@ class WaferMapView(QGraphicsView):
         self._item_max = 0.0
         self._render_indices = np.empty(0, dtype=np.int64)
         self._overlay_enabled = False
-        self._overlays: tuple[PatternOverlay, ...] = ()
+        self._overlays: tuple[PatternExtent, ...] = ()
 
     # -- read-only state ----------------------------------------------------
 
@@ -354,7 +287,7 @@ class WaferMapView(QGraphicsView):
         return self._overlay_enabled
 
     @property
-    def pattern_overlays(self) -> tuple[PatternOverlay, ...]:
+    def pattern_overlays(self) -> tuple[PatternExtent, ...]:
         """Extents of the patterns active on the current wafer."""
         return self._overlays
 
@@ -551,12 +484,12 @@ class WaferMapView(QGraphicsView):
         self._sync_overlay_layer()
         self._fit()
 
-    def _active_pattern_overlays(self, wafer: CPWafer | None) -> tuple[PatternOverlay, ...]:
+    def _active_pattern_overlays(self, wafer: CPWafer | None) -> tuple[PatternExtent, ...]:
         result = self._result
         if result is None or wafer is None:
             return ()
         active = set(wafer.pattern_hits)
-        overlays: list[PatternOverlay] = []
+        overlays: list[PatternExtent] = []
         for index, pattern in enumerate(result.scenario.patterns):
             if pattern_id(index) not in active:
                 continue

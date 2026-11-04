@@ -73,6 +73,7 @@ def test_pattern_overlays_match_the_injected_extents(qtbot: QtBot, tmp_path: Pat
             "target_item": "CP_VTHN",
             "amplitude": 0.4,
             "extent_mm": 10.0,
+            "center_mm": [10.0, -5.0],
         },
     ]
     window = _generate_result(qtbot, tmp_path, patterns)
@@ -89,15 +90,18 @@ def test_pattern_overlays_match_the_injected_extents(qtbot: QtBot, tmp_path: Pat
     assert center_overlay.center_mm == (0.0, 0.0)
     assert center_overlay.inner_radius_mm == 0.0
     assert center_overlay.outer_radius_mm == pytest.approx(45.0)
-    assert edge_overlay.center_mm == (0.0, 0.0)
+    assert edge_overlay.center_mm == (10.0, -5.0)
     assert edge_overlay.inner_radius_mm == pytest.approx(72.0 - 10.0)
     assert edge_overlay.outer_radius_mm == pytest.approx(72.0)
 
     radius = np.hypot(wafer.x_mm, wafer.y_mm)
+    edge_radius = np.hypot(wafer.x_mm - 10.0, wafer.y_mm + 5.0)
     assert np.array_equal(wafer.pattern_hits["pattern_1"], radius < 45.0)
-    assert np.array_equal(wafer.pattern_hits["pattern_2"], radius > 62.0)
+    assert np.array_equal(wafer.pattern_hits["pattern_2"], edge_radius > 62.0)
     assert np.array_equal(wafer.pattern_hits["pattern_1"], radius < center_overlay.outer_radius_mm)
-    assert np.array_equal(wafer.pattern_hits["pattern_2"], radius > edge_overlay.inner_radius_mm)
+    assert np.array_equal(
+        wafer.pattern_hits["pattern_2"], edge_radius > edge_overlay.inner_radius_mm
+    )
 
 
 def test_overlay_toggle_adds_and_removes_the_overlay_layer(qtbot: QtBot, tmp_path: Path) -> None:
@@ -137,6 +141,7 @@ def test_wafer_map_panel_toggles_the_ground_truth_overlay(qtbot: QtBot, tmp_path
             "amplitude": 0.4,
             "radius_mm": 30.0,
             "width_mm": 8.0,
+            "center_mm": [15.0, 10.0],
         }
     ]
     window = _generate_result(qtbot, tmp_path, patterns)
@@ -144,6 +149,7 @@ def test_wafer_map_panel_toggles_the_ground_truth_overlay(qtbot: QtBot, tmp_path
 
     assert panel.overlay_checkbox.isEnabled()
     assert not panel.overlay_checkbox.isChecked()
+    assert panel.map_view.pattern_overlays[0].center_mm == (15.0, 10.0)
 
     panel.overlay_checkbox.setChecked(True)
 

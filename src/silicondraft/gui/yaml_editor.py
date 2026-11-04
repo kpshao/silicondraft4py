@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -22,8 +23,9 @@ from PySide6.QtWidgets import (
 )
 
 from ..errors import ScenarioError, ValidationIssue
-from ..scenario import Scenario, save_scenario, scenario_yaml, validate_scenario_text
+from ..scenario import Scenario, save_scenario, validate_scenario_text
 from ..scenario.loader import parse_scenario_text
+from ..scenario.writer import scenario_yaml
 
 _YAML_PARSE_LOCATION = re.compile(r"line (\d+), column (\d+)")
 _ARRAY_INDEX = re.compile(r"\[\d+\]$")
@@ -90,10 +92,11 @@ def _collect_marks(node: yaml.Node, path: str, marks: dict[str, tuple[int, int]]
 class YamlEditorDialog(QDialog):
     """Edit, validate, and save the complete scenario as YAML.
 
-    The editor starts from the fully expanded scenario, matching what the main
-    window saves. Saving validates first, writes the fully expanded scenario,
-    and only then closes the dialog, so a file accepted here always loads in
-    the GUI and the CLI.
+    The editor starts from the fully expanded scenario with ``preset`` cleared,
+    so an edit that deletes a preset-derived section is authoritative instead
+    of being merged back on load. Saving validates first, writes the fully
+    expanded scenario, and only then closes the dialog, so a file accepted
+    here always loads in the GUI and the CLI.
     """
 
     def __init__(
@@ -111,7 +114,7 @@ class YamlEditorDialog(QDialog):
         self.editor = QPlainTextEdit(self)
         self.editor.setFont(QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont))
         self.editor.setTabStopDistance(32)
-        self.editor.setPlainText(scenario_yaml(scenario))
+        self.editor.setPlainText(scenario_yaml(scenario, include_preset=False))
 
         self.issues_label = QLabel(self.tr("Issues"), self)
         self.issues_list = QListWidget(self)
@@ -174,9 +177,7 @@ class YamlEditorDialog(QDialog):
         """Validate the edited text and move the cursor to the first issue."""
         result = validate_scenario_text(self.text())
         self._issues = result.issues
-        self.issues_list.clear()
-        for issue in result.issues:
-            self.issues_list.addItem(f"{issue.path}: {issue.message} [{issue.code}]")
+        self._show_issues(result.issues)
         if result.ok:
             self.editor.setExtraSelections([])
             self.status_label.setText(self.tr("Scenario is valid."))
@@ -198,9 +199,7 @@ class YamlEditorDialog(QDialog):
             saved_path = save_scenario(scenario, path)
         except ScenarioError as exc:
             self._issues = exc.issues
-            self.issues_list.clear()
-            for issue in exc.issues:
-                self.issues_list.addItem(f"{issue.path}: {issue.message} [{issue.code}]")
+            self._show_issues(exc.issues)
             self.status_label.setText(self.tr("Could not save the scenario."))
             return False
         except OSError as exc:
@@ -216,6 +215,11 @@ class YamlEditorDialog(QDialog):
         return True
 
     # -- dialog actions -----------------------------------------------------
+
+    def _show_issues(self, issues: Sequence[ValidationIssue]) -> None:
+        self.issues_list.clear()
+        for issue in issues:
+            self.issues_list.addItem(f"{issue.path}: {issue.message} [{issue.code}]")
 
     def _save(self) -> None:
         path = self._path

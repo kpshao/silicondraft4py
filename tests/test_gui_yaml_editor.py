@@ -7,7 +7,7 @@ from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication, QDialog
 from pytestqt.qtbot import QtBot
 
-from silicondraft import load_scenario
+from silicondraft import load_scenario, scenario_from_preset
 from silicondraft.cli import main
 from silicondraft.gui.main_window import MainWindow
 from silicondraft.gui.yaml_editor import YamlEditorDialog
@@ -144,6 +144,26 @@ def test_invalid_yaml_syntax_moves_the_cursor_to_the_parse_error(
     assert dialog.issues[0].code == "YAML_PARSE_ERROR"
     assert dialog.editor.textCursor().blockNumber() + 1 == 2
     assert "line 2" in dialog.issues_list.item(0).text()
+
+
+def test_yaml_editor_expands_presets_and_keeps_edits_authoritative(
+    qtbot: QtBot, tmp_path: Path
+) -> None:
+    scenario = scenario_from_preset("demo", 7)
+    dialog = YamlEditorDialog(scenario)
+    qtbot.addWidget(dialog)
+    document = yaml.safe_load(dialog.text())
+    assert document["preset"] is None
+    assert document["patterns"]
+    document["patterns"] = []
+    dialog.set_text(yaml.safe_dump(document, sort_keys=False))
+    target = tmp_path / "demo-edited.yaml"
+
+    assert dialog.save_to_path(target)
+
+    saved = load_scenario(target)
+    assert saved.preset is None
+    assert saved.patterns == []
 
 
 def test_yaml_editor_saves_a_valid_scenario(qtbot: QtBot, tmp_path: Path) -> None:
