@@ -33,9 +33,11 @@ from ..scenario import (
     save_scenario,
     scenario_from_preset,
 )
+from .distribution import DistributionPanel
 from .export_dialog import ExportDialog
 from .result_table import ResultsPanel
 from .scenario_tree import ScenarioTree
+from .wafer_map import WaferMapPanel
 from .worker import GenerateFn, GenerationWorker
 
 DEFAULT_SEED = 20260105
@@ -153,7 +155,7 @@ class MainWindow(QMainWindow):
         self._scenario_path = Path(path) if path is not None else None
         self._last_result = None
         self._last_export_paths = ()
-        self.results_panel.set_result(None)
+        self._set_preview_result(None)
         self._clear_issues()
         self.tree.set_scenario(scenario)
         self._sync_preset_combo()
@@ -188,7 +190,7 @@ class MainWindow(QMainWindow):
         self._clear_issues()
         self._last_result = None
         self._last_export_paths = ()
-        self.results_panel.set_result(None)
+        self._set_preview_result(None)
         self._worker_settled = False
         self.progress_bar.setRange(0, self._scenario.lots.wafer_count)
         self.progress_bar.setValue(0)
@@ -257,10 +259,14 @@ class MainWindow(QMainWindow):
         issues_layout.addWidget(self.issues_label)
         issues_layout.addWidget(self.issues_list)
 
+        self.wafer_map_panel = WaferMapPanel(self)
+        self.distribution_panel = DistributionPanel(self)
         self.results_panel = ResultsPanel(self)
         self.preview_tabs = QTabWidget(self)
-        self.preview_tabs.addTab(self.issues_panel, self.tr("Issues"))
+        self.preview_tabs.addTab(self.wafer_map_panel, self.tr("Wafer Map"))
+        self.preview_tabs.addTab(self.distribution_panel, self.tr("Distribution"))
         self.preview_tabs.addTab(self.results_panel, self.tr("Results"))
+        self.preview_tabs.addTab(self.issues_panel, self.tr("Issues"))
 
         splitter = QSplitter(Qt.Orientation.Horizontal, self)
         splitter.addWidget(self.tree)
@@ -349,8 +355,8 @@ class MainWindow(QMainWindow):
         self._last_result = result
         wafer_count = sum(len(lot.wafers) for lot in result.lots)
         die_count = sum(lot.die_count for lot in result.lots)
-        self.results_panel.set_result(result)
-        self.preview_tabs.setCurrentWidget(self.results_panel)
+        self._set_preview_result(result)
+        self.preview_tabs.setCurrentWidget(self.wafer_map_panel)
         self.statusBar().showMessage(
             self.tr("Generation complete: {lots} lot(s), {wafers} wafer(s), {dies} die(s)").format(
                 lots=len(result.lots), wafers=wafer_count, dies=die_count
@@ -465,6 +471,11 @@ class MainWindow(QMainWindow):
     def _clear_issues(self) -> None:
         self._last_issues = ()
         self.issues_list.clear()
+
+    def _set_preview_result(self, result: GenerationResult | None) -> None:
+        self.wafer_map_panel.set_result(result)
+        self.distribution_panel.set_result(result)
+        self.results_panel.set_result(result)
 
     def _update_actions(self) -> None:
         running = self._worker is not None

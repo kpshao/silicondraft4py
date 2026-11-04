@@ -304,7 +304,7 @@ def test_generation_populates_the_table_and_enables_export(qtbot: QtBot, tmp_pat
     assert model.data(model.index(0, 0)) == result.lots[0].lot_id
     assert model.data(model.index(0, 1)) == result.lots[0].wafers[0].wafer_id
     assert window.export_action.isEnabled()
-    assert window.preview_tabs.currentWidget() is window.results_panel
+    assert window.preview_tabs.currentWidget() is window.wafer_map_panel
 
     window.results_panel.set_page_size(10)
     assert model.page_count > 1
