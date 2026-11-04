@@ -312,9 +312,7 @@ class WaferMapView(QGraphicsView):
                 wafer=wafer.wafer_id, code=code, name=name, position=position
             )
         if self._item_id is None:
-            return self.tr("{wafer}  {position}").format(
-                wafer=wafer.wafer_id, position=position
-            )
+            return self.tr("{wafer}  {position}").format(wafer=wafer.wafer_id, position=position)
         item = self._item_lookup[self._item_id]
         value = float(wafer.values[item.id][die_index])
         return self.tr("{wafer}  {item}={value} {unit}  {position}").format(

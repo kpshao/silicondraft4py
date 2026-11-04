@@ -311,17 +311,13 @@ def _generate(window: MainWindow, qtbot: QtBot) -> None:
     qtbot.waitUntil(lambda: not window.generation_running, timeout=3000)
 
 
-def test_generation_fills_wafer_map_and_distribution_tabs(
-    qtbot: QtBot, tmp_path: Path
-) -> None:
+def test_generation_fills_wafer_map_and_distribution_tabs(qtbot: QtBot, tmp_path: Path) -> None:
     window = MainWindow()
     qtbot.addWidget(window)
     window.show()
     assert window.load_path(_write_preview_scenario(tmp_path))
 
-    titles = [
-        window.preview_tabs.tabText(index) for index in range(window.preview_tabs.count())
-    ]
+    titles = [window.preview_tabs.tabText(index) for index in range(window.preview_tabs.count())]
     assert "Wafer Map" in titles
     assert "Distribution" in titles
     assert window.wafer_map_panel.map_view.wafer is None
@@ -362,9 +358,7 @@ def test_preview_values_match_the_exported_csv(qtbot: QtBot, tmp_path: Path) -> 
     assert wafer is not None
 
     csv_path = next(
-        path
-        for path in window.last_export_paths
-        if path.suffix == ".csv" and "_CP_" in path.name
+        path for path in window.last_export_paths if path.suffix == ".csv" and "_CP_" in path.name
     )
     with csv_path.open(encoding="utf-8", newline="") as stream:
         rows = [
@@ -387,9 +381,7 @@ def test_preview_values_match_the_exported_csv(qtbot: QtBot, tmp_path: Path) -> 
     assert int(histogram.counts.sum()) == len(rows)
 
 
-def test_injected_spatial_pattern_is_visible_on_the_map(
-    qtbot: QtBot, tmp_path: Path
-) -> None:
+def test_injected_spatial_pattern_is_visible_on_the_map(qtbot: QtBot, tmp_path: Path) -> None:
     patterns = [
         {
             "kind": "center_high",
@@ -412,9 +404,7 @@ def test_injected_spatial_pattern_is_visible_on_the_map(
     wafer = view.wafer
     assert wafer is not None
     radius = np.hypot(wafer.x_mm, wafer.y_mm)
-    values = np.array(
-        [view.display_value(die_index) for die_index in range(wafer.die_count)]
-    )
+    values = np.array([view.display_value(die_index) for die_index in range(wafer.die_count)])
     centre = values[radius <= 20.0]
     edge = values[radius >= 55.0]
     assert centre.size > 0

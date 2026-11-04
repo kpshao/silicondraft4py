@@ -168,9 +168,7 @@ class DistributionPanel(QWidget):
     def _item_values(self, item_id: str) -> NDArray[np.float64]:
         if self._result is None:
             return np.empty(0, dtype=np.float64)
-        columns = [
-            wafer.values[item_id] for lot in self._result.lots for wafer in lot.wafers
-        ]
+        columns = [wafer.values[item_id] for lot in self._result.lots for wafer in lot.wafers]
         if not columns:
             return np.empty(0, dtype=np.float64)
         return np.concatenate(columns)
