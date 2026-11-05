@@ -1,0 +1,51 @@
+name: Package
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "buildtools/**"
+      - "scripts/package.py"
+      - "src/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/package.yml"
+
+concurrency:
+  group: package-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bundle:
+    name: ${{ matrix.os }} onedir bundle
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          python-version: "3.13"
+      - name: Install dependencies
+        run: uv sync --locked
+      - name: Build, verify licenses, and smoke-test the frozen app
+        run: uv run python scripts/package.py
+      - name: Archive the macOS app bundle
+        if: runner.os == 'macOS'
+        run: ditto -c -k --keepParent dist/SiliconDraft.app "dist/SiliconDraft-macos-${RUNNER_ARCH}.zip"
+      - name: Archive the Windows onedir bundle
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path dist/SiliconDraft -DestinationPath "dist/SiliconDraft-windows-$env:RUNNER_ARCH.zip"
+      - name: Upload bundle and report
+        uses: actions/upload-artifact@v4
+        with:
+          name: silicondraft-${{ runner.os }}-${{ runner.arch }}
+          path: |
+            dist/*.zip
+            dist/package-report.json
+          if-no-files-found: error

@@ -1,0 +1,28 @@
+Qt / PySide6 notices
+====================
+
+SiliconDraft includes the Qt cross-platform application framework and the
+PySide6 bindings, distributed as PySide6-Essentials.
+
+  Component: PySide6-Essentials and shiboken6
+  License:   GNU Lesser General Public License version 3 (LGPL-3.0-only)
+             Qt is also available under GPL-2.0-only, GPL-3.0-only, or a
+             commercial license from The Qt Company.
+  Copyright: Copyright (C) The Qt Company Ltd. and other contributors.
+
+SiliconDraft ships Qt dynamically linked. The bundled Qt libraries are
+unmodified copies taken from the PySide6-Essentials wheel. You may replace
+them with compatible versions of the same Qt release series; the application
+loads the bundled Qt libraries at run time, so no relinking is required.
+
+The complete LGPL-3.0 and GPL-3.0 license texts are included next to this
+file as LGPL-3.0.txt and GPL-3.0.txt. LGPL-3.0 adds permissions on top of
+GPL-3.0, so both texts are required.
+
+Source code:
+  Qt:      https://code.qt.io/cgit/qt/
+  PySide6: https://code.qt.io/cgit/pyside/pyside-setup.git/
+  Commercial licensing: https://www.qt.io/licensing/
+
+SiliconDraft itself is licensed under the MIT License; see
+SiliconDraft/LICENSE in this directory.

@@ -264,6 +264,17 @@ for report in generated.pattern_reports:
 
 `generate()` 与 `generate_to_directory()` 接受可选的 `progress` 与 `should_cancel` 回调：`progress` 在每个 wafer 完成后收到 `GenerationProgress`，`should_cancel` 返回 `True` 时生成抛出 `GenerationCancelled`。`save_scenario(scenario, path)` 把 scenario 写成完全展开、可直接重新加载的 YAML。
 
+## 打包（spike）
+
+V1 以 PyInstaller `onedir` 为工作假设，最终方案（PyInstaller vs Nuitka）仍待定。打包脚本只带 PySide6-Essentials，把 LGPL-3.0/GPL-3.0 文本与 Qt notices 写入包内 `licenses/`，并在冻结进程中完成 generate 与 export 冒烟测试：
+
+```bash
+uv sync
+make package        # 或 uv run python scripts/package.py
+```
+
+macOS 产出 `dist/SiliconDraft.app`；Windows 产出 `dist/SiliconDraft/SiliconDraft.exe`。`dist/package-report.json` 记录包体积、启动时间与依赖许可。macOS 实测结果、合规说明与已知问题见[打包 spike 记录](docs/design/packaging-spike.md)；[package workflow](.github/workflows/package.yml) 在 macOS 与 Windows 上执行同一脚本。
+
 ## 开发
 
 ```bash
@@ -557,6 +568,17 @@ for report in generated.pattern_reports:
 ```
 
 `generate()` and `generate_to_directory()` accept optional `progress` and `should_cancel` callbacks: `progress` receives a `GenerationProgress` after each wafer, and generation raises `GenerationCancelled` when `should_cancel` returns `True`. `save_scenario(scenario, path)` writes a fully expanded scenario that reloads to the same value.
+
+## Packaging (spike)
+
+V1 assumes PyInstaller `onedir`; the final choice (PyInstaller vs Nuitka) is still deferred. The packaging script bundles PySide6-Essentials only, copies the LGPL-3.0/GPL-3.0 texts and Qt notices into the bundle's `licenses/` directory, and smoke-tests generate and export inside the frozen app:
+
+```bash
+uv sync
+make package        # or uv run python scripts/package.py
+```
+
+macOS produces `dist/SiliconDraft.app`; Windows produces `dist/SiliconDraft/SiliconDraft.exe`. `dist/package-report.json` records bundle size, startup time, and component licenses. See the [packaging spike notes](docs/design/packaging-spike.md) for the macOS measurements, compliance details, and known issues; the [package workflow](.github/workflows/package.yml) runs the same script on macOS and Windows.
 
 ## Development
 
