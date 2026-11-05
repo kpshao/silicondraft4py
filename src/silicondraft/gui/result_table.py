@@ -93,6 +93,11 @@ class ResultTableModel(QAbstractTableModel):
 
     # -- population ---------------------------------------------------------
 
+    def retranslate_ui(self) -> None:
+        """Repaint translated cells such as the pass/fail column."""
+        self.beginResetModel()
+        self.endResetModel()
+
     def set_result(self, result: GenerationResult | None) -> None:
         """Show ``result`` from the first page, or clear the table for ``None``."""
         self.beginResetModel()
@@ -241,8 +246,8 @@ class ResultsPanel(QWidget):
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.horizontalHeader().setStretchLastSection(True)
 
-        self.previous_button = QPushButton(self.tr("Previous"), self)
-        self.next_button = QPushButton(self.tr("Next"), self)
+        self.previous_button = QPushButton(self)
+        self.next_button = QPushButton(self)
         self.page_label = QLabel(self)
         self.previous_button.clicked.connect(lambda: self._turn_page(-1))
         self.next_button.clicked.connect(lambda: self._turn_page(1))
@@ -256,6 +261,13 @@ class ResultsPanel(QWidget):
         layout = QVBoxLayout(self)
         layout.addWidget(self.table)
         layout.addLayout(controls)
+        self.retranslate_ui()
+
+    def retranslate_ui(self) -> None:
+        """Re-apply every user-visible string in the current language."""
+        self.previous_button.setText(self.tr("Previous"))
+        self.next_button.setText(self.tr("Next"))
+        self._model.retranslate_ui()
         self._sync_pagination()
 
     @property

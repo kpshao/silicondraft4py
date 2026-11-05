@@ -1,0 +1,238 @@
+# Chinese (Simplified) translations for SiliconDraft CLI and engine messages.
+msgid ""
+msgstr ""
+"Project-Id-Version: silicondraft 0.1.0\n"
+"Language: zh_CN\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+# CLI
+msgid "Generate reproducible synthetic CP/WAT test data."
+msgstr "生成可复现的合成 CP/WAT 测试数据。"
+
+msgid "message language: en or zh"
+msgstr "消息语言：en 或 zh"
+
+msgid "generate data and write CSV and ground truth"
+msgstr "生成数据并写出 CSV 与真值"
+
+msgid "path to the scenario YAML file"
+msgstr "场景 YAML 文件路径"
+
+msgid "directory for exported files"
+msgstr "导出文件目录"
+
+msgid "skip the per-die ground truth CSV.GZ (the JSON manifest is still written)"
+msgstr "跳过逐 die 真值 CSV.GZ（仍写出 JSON 清单）"
+
+msgid "validate a scenario YAML file"
+msgstr "校验场景 YAML 文件"
+
+msgid "print the scenario JSON Schema"
+msgstr "打印场景 JSON Schema"
+
+msgid "print the SiliconDraft version"
+msgstr "打印 SiliconDraft 版本"
+
+msgid "export failed: {error}"
+msgstr "导出失败：{error}"
+
+msgid "generation failed: {error}"
+msgstr "生成失败：{error}"
+
+msgid "scenario: OK ({path})"
+msgstr "场景：通过 ({path})"
+
+msgid "generated: {lots} lot(s), {wafers} wafer(s), {dies} die(s)"
+msgstr "已生成：{lots} 个 lot，{wafers} 片晶圆，{dies} 个 die"
+
+msgid "linkage: {wat} -> {cp} factor={factor} target_r={target:.3f} achieved_r={achieved:.3f} observed_r={observed:.3f}"
+msgstr "联动：{wat} -> {cp} factor={factor} target_r={target:.3f} achieved_r={achieved:.3f} observed_r={observed:.3f}"
+
+msgid "exported: {path}"
+msgstr "已导出：{path}"
+
+msgid "scenario: INVALID: validation produced no summary"
+msgstr "场景：无效：校验未产生摘要"
+
+msgid "  product: {value}"
+msgstr "  产品：{value}"
+
+msgid "  schema_version: {value}"
+msgstr "  schema_version：{value}"
+
+msgid "  preset: {value}"
+msgstr "  预设：{value}"
+
+msgid "  lots: {value}"
+msgstr "  lot 数：{value}"
+
+msgid "  wafers_per_lot: {value}"
+msgstr "  每 lot 晶圆数：{value}"
+
+msgid "  wafers: {value}"
+msgstr "  晶圆数：{value}"
+
+msgid "  dies_per_wafer: {value}"
+msgstr "  每片晶圆 die 数：{value}"
+
+msgid "  dies_total: {value}"
+msgstr "  die 总数：{value}"
+
+msgid "  cp_items: {value}"
+msgstr "  CP 测试项数：{value}"
+
+msgid "  wat_items: {value}"
+msgstr "  WAT 测试项数：{value}"
+
+msgid "  items_total: {value}"
+msgstr "  测试项总数：{value}"
+
+msgid "scenario: INVALID ({path})"
+msgstr "场景：无效 ({path})"
+
+# Semantic validation
+msgid "unknown preset '{name}'; available: {available}"
+msgstr "未知预设 '{name}'；可用：{available}"
+
+msgid "edge exclusion {exclusion:g} mm leaves no usable radius on a {diameter} mm wafer"
+msgstr "边缘排除 {exclusion:g} mm 在 {diameter} mm 晶圆上未留下可用半径"
+
+msgid "a {width:g} x {height:g} mm die grid does not fit on a {diameter} mm wafer with {exclusion:g} mm edge exclusion"
+msgstr "a {width:g} x {height:g} mm 的 die 阵列无法放入 {diameter} mm 晶圆（边缘排除 {exclusion:g} mm）"
+
+msgid "template must not be empty"
+msgstr "模板不能为空"
+
+msgid "invalid template: {error}"
+msgstr "无效模板：{error}"
+
+msgid "unknown placeholder(s) {unknown}; allowed: {allowed}"
+msgstr "未知占位符 {unknown}；允许：{allowed}"
+
+msgid "cannot render template: {error}"
+msgstr "无法渲染模板：{error}"
+
+msgid "pattern must target 'yield', a CP item, or both"
+msgstr "空间模式必须指向 'yield'、一个 CP 测试项，或两者"
+
+msgid "pattern kind '{kind}' requires '{field}'"
+msgstr "空间模式类型 '{kind}' 需要 '{field}'"
+
+msgid "yield target requires an enabled CP_FUNC or CP_SCAN item that can fail"
+msgstr "yield 目标需要启用的、可失效的 CP_FUNC 或 CP_SCAN 测试项"
+
+msgid "enabled random defects must target at least one CP item"
+msgstr "启用的随机缺陷必须至少指定一个 CP 测试项"
+
+msgid "test item '{item}' has no pass rule; defect targets need a bernoulli item or a spec limit"
+msgstr "测试项 '{item}' 没有通过规则；缺陷目标需要伯努利测试项或规格限"
+
+msgid "defect target '{item}' is listed more than once"
+msgstr "缺陷目标 '{item}' 重复列出"
+
+msgid "unknown test item '{item}'"
+msgstr "未知测试项目 '{item}'"
+
+msgid "test item '{item}' is disabled"
+msgstr "测试项 '{item}' 已禁用"
+
+msgid "expected a {expected} item; '{item}' is a {actual} item"
+msgstr "期望 {expected} 测试项；'{item}' 是 {actual} 测试项"
+
+msgid "include_die_truth requires ground_truth to be enabled"
+msgstr "include_die_truth 需要启用 ground_truth"
+
+msgid "cannot link WAT item '{item}' with distribution '{distribution}'; linkage supports normal and lognormal items"
+msgstr "无法将 WAT 测试项 '{item}'（分布 '{distribution}'）纳入联动；联动仅支持 normal 与 lognormal"
+
+msgid "cannot link CP item '{item}' with distribution '{distribution}'; linkage supports normal and lognormal items"
+msgstr "无法将 CP 测试项 '{item}'（分布 '{distribution}'）纳入联动；联动仅支持 normal 与 lognormal"
+
+msgid "WAT item '{item}' has no primary latent factor; custom WAT items cannot be linked"
+msgstr "WAT 测试项 '{item}' 没有主潜在因子；自定义 WAT 测试项无法联动"
+
+msgid "linkage pair '{wat}' -> '{cp}' is specified more than once"
+msgstr "联动配对 '{wat}' -> '{cp}' 重复指定"
+
+msgid "changing item '{item}' to distribution '{distribution}' would drop its default linkage pairs; remove or disable the item instead"
+msgstr "将测试项 '{item}' 改为分布 '{distribution}' 会丢弃其默认联动配对；请删除或禁用该测试项"
+
+msgid "amplitude must be non-zero; the sign selects high or low"
+msgstr "幅度不能为零；正负号表示偏高或偏低"
+
+msgid "amplitude must be positive; direction is encoded by the pattern kind"
+msgstr "幅度必须为正；方向由空间模式类型决定"
+
+# Test item catalog
+msgid "item '{item}' is overridden more than once"
+msgstr "测试项 '{item}' 被重复覆盖"
+
+msgid "invalid item id '{item}'; expected CP_* or WAT_* using uppercase letters, digits, and underscores"
+msgstr "无效测试项 ID '{item}'；应为 CP_* 或 WAT_*，只含大写字母、数字和下划线"
+
+msgid "cannot remove unknown test item '{item}'"
+msgstr "无法删除未知测试项 '{item}'"
+
+msgid "new item '{item}' requires '{field}'"
+msgstr "新测试项 '{item}' 需要 '{field}'"
+
+msgid "item id '{item}' does not match phase '{phase}'; expected prefix '{phase}_'"
+msgstr "测试项 ID '{item}' 与阶段 '{phase}' 不匹配；期望前缀 '{phase}_'"
+
+msgid "cannot change phase of item '{item}' from {old} to {new}"
+msgstr "无法将测试项 '{item}' 的阶段从 {old} 改为 {new}"
+
+msgid "unit '{unit}' is not ASCII; use '{hint}' (µ→u, Ω→ohm, Å→angstrom, ²→2)"
+msgstr "单位 '{unit}' 不是 ASCII；请改用 '{hint}'（µ→u, Ω→ohm, Å→angstrom, ²→2）"
+
+msgid "unit '{unit}' is not ASCII; use ASCII unit notation"
+msgstr "单位 '{unit}' 不是 ASCII；请改用 ASCII 单位记法"
+
+msgid "item '{item}' has LSL {lsl:g} >= USL {usl:g}"
+msgstr "测试项 '{item}' 的 LSL {lsl:g} >= USL {usl:g}"
+
+msgid "test_num {test_num} is already used by '{other}'"
+msgstr "test_num {test_num} 已被 '{other}' 使用"
+
+# Export API
+msgid "cannot export to {path}: {error}"
+msgstr "无法导出到 {path}：{error}"
+
+msgid "no export format requested; supported: csv"
+msgstr "未请求导出格式；支持：csv"
+
+msgid "unsupported export format(s): {formats}; supported: csv"
+msgstr "不支持的导出格式：{formats}；支持：csv"
+
+msgid "unsupported CP CSV layout: {layout}; supported: {supported}"
+msgstr "不支持的 CP CSV 布局：{layout}；支持：{supported}"
+
+# Scenario loading and saving
+msgid "cannot write scenario file {path}: {error}"
+msgstr "无法写入场景文件 {path}：{error}"
+
+msgid "scenario file not found: {path}"
+msgstr "找不到场景文件：{path}"
+
+msgid "scenario file {path} is not valid UTF-8: {error}"
+msgstr "场景文件 {path} 不是有效的 UTF-8：{error}"
+
+msgid "cannot read scenario file {path}: {error}"
+msgstr "无法读取场景文件 {path}：{error}"
+
+msgid "YAML parse error: {error}"
+msgstr "YAML 解析错误：{error}"
+
+msgid "YAML parse error at line {line}, column {column}: {problem}"
+msgstr "YAML 解析错误（第 {line} 行，第 {column} 列）：{problem}"
+
+msgid "invalid YAML"
+msgstr "无效的 YAML"
+
+msgid "scenario document is empty"
+msgstr "场景文档为空"
+
+msgid "scenario document must be a mapping of sections"
+msgstr "场景文档必须是分节映射"

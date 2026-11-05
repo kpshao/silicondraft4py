@@ -7,6 +7,7 @@ from string import Formatter
 from ..catalog import Catalog, can_fail, resolve_catalog
 from ..errors import ScenarioError, ValidationIssue
 from ..geometry import count_dies
+from ..i18n import _
 from ..latent import DEFAULT_LINKAGE_ITEM_IDS, LINKABLE_DISTRIBUTIONS, WAT_FACTOR
 from .loader import parse_scenario, parse_scenario_text, read_scenario_data
 from .models import (
@@ -136,7 +137,9 @@ def scenario_from_preset(name: str, seed: int) -> Scenario:
                 ValidationIssue(
                     code="UNKNOWN_PRESET",
                     path="preset",
-                    message=(f"unknown preset '{name}'; available: {', '.join(PRESET_NAMES)}"),
+                    message=_("unknown preset '{name}'; available: {available}").format(
+                        name=name, available=", ".join(PRESET_NAMES)
+                    ),
                 )
             ]
         )
@@ -154,9 +157,12 @@ def _validate_geometry(wafer: Wafer) -> list[ValidationIssue]:
             ValidationIssue(
                 code="EDGE_EXCLUSION_TOO_LARGE",
                 path="wafer.edge_exclusion_mm",
-                message=(
-                    f"edge exclusion {wafer.edge_exclusion_mm:g} mm leaves no usable "
-                    f"radius on a {wafer.diameter_mm} mm wafer"
+                message=_(
+                    "edge exclusion {exclusion:g} mm leaves no usable radius "
+                    "on a {diameter} mm wafer"
+                ).format(
+                    exclusion=wafer.edge_exclusion_mm,
+                    diameter=wafer.diameter_mm,
                 ),
             )
         ]
@@ -166,10 +172,14 @@ def _validate_geometry(wafer: Wafer) -> list[ValidationIssue]:
             ValidationIssue(
                 code="DIE_GRID_DOES_NOT_FIT",
                 path="wafer.die_size_mm",
-                message=(
-                    f"a {die_width_mm:g} x {die_height_mm:g} mm die grid does not fit "
-                    f"on a {wafer.diameter_mm} mm wafer with "
-                    f"{wafer.edge_exclusion_mm:g} mm edge exclusion"
+                message=_(
+                    "a {width:g} x {height:g} mm die grid does not fit on a "
+                    "{diameter} mm wafer with {exclusion:g} mm edge exclusion"
+                ).format(
+                    width=die_width_mm,
+                    height=die_height_mm,
+                    diameter=wafer.diameter_mm,
+                    exclusion=wafer.edge_exclusion_mm,
                 ),
             )
         ]
@@ -198,7 +208,7 @@ def _validate_id_template(
             ValidationIssue(
                 code="INVALID_ID_TEMPLATE",
                 path=path,
-                message="template must not be empty",
+                message=_("template must not be empty"),
             )
         ]
     try:
@@ -212,7 +222,7 @@ def _validate_id_template(
             ValidationIssue(
                 code="INVALID_ID_TEMPLATE",
                 path=path,
-                message=f"invalid template: {exc}",
+                message=_("invalid template: {error}").format(error=exc),
             )
         ]
 
@@ -222,9 +232,9 @@ def _validate_id_template(
             ValidationIssue(
                 code="INVALID_ID_TEMPLATE",
                 path=path,
-                message=(
-                    f"unknown placeholder(s) {', '.join(unknown)}; "
-                    f"allowed: {', '.join(sorted(allowed))}"
+                message=_("unknown placeholder(s) {unknown}; allowed: {allowed}").format(
+                    unknown=", ".join(unknown),
+                    allowed=", ".join(sorted(allowed)),
                 ),
             )
         ]
@@ -236,7 +246,7 @@ def _validate_id_template(
             ValidationIssue(
                 code="INVALID_ID_TEMPLATE",
                 path=path,
-                message=f"cannot render template: {exc}",
+                message=_("cannot render template: {error}").format(error=exc),
             )
         ]
     return []
@@ -251,7 +261,7 @@ def _validate_patterns(patterns: list[Pattern], catalog: Catalog) -> list[Valida
                 ValidationIssue(
                     code="PATTERN_TARGET_MISSING",
                     path=path,
-                    message="pattern must target 'yield', a CP item, or both",
+                    message=_("pattern must target 'yield', a CP item, or both"),
                 )
             )
         if pattern.target_item is not None:
@@ -264,7 +274,9 @@ def _validate_patterns(patterns: list[Pattern], catalog: Catalog) -> list[Valida
                     ValidationIssue(
                         code="PATTERN_EXTENT_MISSING",
                         path=f"{path}.{field_name}",
-                        message=(f"pattern kind '{pattern.kind}' requires '{field_name}'"),
+                        message=_("pattern kind '{kind}' requires '{field}'").format(
+                            kind=pattern.kind, field=field_name
+                        ),
                     )
                 )
         if pattern.target == "yield" and not _has_yield_failure_item(catalog):
@@ -272,7 +284,7 @@ def _validate_patterns(patterns: list[Pattern], catalog: Catalog) -> list[Valida
                 ValidationIssue(
                     code="PATTERN_YIELD_TARGET_UNAVAILABLE",
                     path=f"{path}.target",
-                    message=(
+                    message=_(
                         "yield target requires an enabled CP_FUNC or CP_SCAN item that can fail"
                     ),
                 )
@@ -297,7 +309,7 @@ def _validate_defects(defects: Defects, catalog: Catalog) -> list[ValidationIssu
             ValidationIssue(
                 code="DEFECT_TARGET_MISSING",
                 path="defects.target_items",
-                message="enabled random defects must target at least one CP item",
+                message=_("enabled random defects must target at least one CP item"),
             )
         ]
 
@@ -312,10 +324,10 @@ def _validate_defects(defects: Defects, catalog: Catalog) -> list[ValidationIssu
                 ValidationIssue(
                     code="DEFECT_TARGET_UNSUPPORTED",
                     path=path,
-                    message=(
-                        f"test item '{item_id}' has no pass rule; defect targets need "
+                    message=_(
+                        "test item '{item}' has no pass rule; defect targets need "
                         "a bernoulli item or a spec limit"
-                    ),
+                    ).format(item=item_id),
                 )
             )
         if item_id in seen:
@@ -323,7 +335,9 @@ def _validate_defects(defects: Defects, catalog: Catalog) -> list[ValidationIssu
                 ValidationIssue(
                     code="DUPLICATE_DEFECT_TARGET",
                     path=path,
-                    message=f"defect target '{item_id}' is listed more than once",
+                    message=_("defect target '{item}' is listed more than once").format(
+                        item=item_id
+                    ),
                 )
             )
         else:
@@ -340,7 +354,7 @@ def _validate_item_reference(
             ValidationIssue(
                 code="ITEM_REFERENCE_UNKNOWN",
                 path=path,
-                message=f"unknown test item '{item_id}'",
+                message=_("unknown test item '{item}'").format(item=item_id),
             )
         ]
     if not item.enabled:
@@ -348,7 +362,7 @@ def _validate_item_reference(
             ValidationIssue(
                 code="ITEM_DISABLED",
                 path=path,
-                message=f"test item '{item_id}' is disabled",
+                message=_("test item '{item}' is disabled").format(item=item_id),
             )
         ]
     if item.phase != expected_phase:
@@ -356,7 +370,9 @@ def _validate_item_reference(
             ValidationIssue(
                 code="ITEM_PHASE_MISMATCH",
                 path=path,
-                message=(f"expected a {expected_phase} item; '{item_id}' is a {item.phase} item"),
+                message=_("expected a {expected} item; '{item}' is a {actual} item").format(
+                    expected=expected_phase, item=item_id, actual=item.phase
+                ),
             )
         ]
     return []
@@ -368,7 +384,7 @@ def _validate_export(export: ExportOptions) -> list[ValidationIssue]:
             ValidationIssue(
                 code="EXPORT_OPTION_CONFLICT",
                 path="export.include_die_truth",
-                message="include_die_truth requires ground_truth to be enabled",
+                message=_("include_die_truth requires ground_truth to be enabled"),
             )
         ]
     return []
@@ -392,10 +408,10 @@ def _validate_linkage(linkage: Linkage, catalog: Catalog) -> list[ValidationIssu
                 ValidationIssue(
                     code="LINKAGE_UNSUPPORTED_DISTRIBUTION",
                     path=f"{path}.wat",
-                    message=(
-                        f"cannot link WAT item '{override.wat}' with distribution "
-                        f"'{wat_item.distribution}'; linkage supports normal and lognormal items"
-                    ),
+                    message=_(
+                        "cannot link WAT item '{item}' with distribution "
+                        "'{distribution}'; linkage supports normal and lognormal items"
+                    ).format(item=override.wat, distribution=wat_item.distribution),
                 )
             )
         if (
@@ -407,10 +423,10 @@ def _validate_linkage(linkage: Linkage, catalog: Catalog) -> list[ValidationIssu
                 ValidationIssue(
                     code="LINKAGE_UNSUPPORTED_DISTRIBUTION",
                     path=f"{path}.cp",
-                    message=(
-                        f"cannot link CP item '{override.cp}' with distribution "
-                        f"'{cp_item.distribution}'; linkage supports normal and lognormal items"
-                    ),
+                    message=_(
+                        "cannot link CP item '{item}' with distribution "
+                        "'{distribution}'; linkage supports normal and lognormal items"
+                    ).format(item=override.cp, distribution=cp_item.distribution),
                 )
             )
         if wat_item is not None and wat_item.phase == "WAT" and override.wat not in WAT_FACTOR:
@@ -418,10 +434,10 @@ def _validate_linkage(linkage: Linkage, catalog: Catalog) -> list[ValidationIssu
                 ValidationIssue(
                     code="LINKAGE_UNSUPPORTED_WAT_ITEM",
                     path=f"{path}.wat",
-                    message=(
-                        f"WAT item '{override.wat}' has no primary latent factor; "
+                    message=_(
+                        "WAT item '{item}' has no primary latent factor; "
                         "custom WAT items cannot be linked"
-                    ),
+                    ).format(item=override.wat),
                 )
             )
         pair = (override.wat, override.cp)
@@ -430,9 +446,8 @@ def _validate_linkage(linkage: Linkage, catalog: Catalog) -> list[ValidationIssu
                 ValidationIssue(
                     code="DUPLICATE_LINKAGE_PAIR",
                     path=path,
-                    message=(
-                        f"linkage pair '{override.wat}' -> '{override.cp}' "
-                        "is specified more than once"
+                    message=_("linkage pair '{wat}' -> '{cp}' is specified more than once").format(
+                        wat=override.wat, cp=override.cp
                     ),
                 )
             )
@@ -459,11 +474,10 @@ def _validate_item_overrides_linkage(items: Items) -> list[ValidationIssue]:
             ValidationIssue(
                 code="LINKAGE_UNSUPPORTED_DISTRIBUTION",
                 path=f"items.overrides[{index}].distribution",
-                message=(
-                    f"changing item '{override.id}' to distribution "
-                    f"'{override.distribution}' would drop its default linkage pairs; "
-                    "remove or disable the item instead"
-                ),
+                message=_(
+                    "changing item '{item}' to distribution '{distribution}' would "
+                    "drop its default linkage pairs; remove or disable the item instead"
+                ).format(item=override.id, distribution=override.distribution),
             )
         )
     return issues
@@ -476,7 +490,7 @@ def _validate_pattern_amplitude(pattern: Pattern, path: str) -> list[ValidationI
                 ValidationIssue(
                     code="INVALID_PATTERN_AMPLITUDE",
                     path=f"{path}.amplitude",
-                    message="amplitude must be non-zero; the sign selects high or low",
+                    message=_("amplitude must be non-zero; the sign selects high or low"),
                 )
             ]
         return []
@@ -485,7 +499,7 @@ def _validate_pattern_amplitude(pattern: Pattern, path: str) -> list[ValidationI
             ValidationIssue(
                 code="INVALID_PATTERN_AMPLITUDE",
                 path=f"{path}.amplitude",
-                message=("amplitude must be positive; direction is encoded by the pattern kind"),
+                message=_("amplitude must be positive; direction is encoded by the pattern kind"),
             )
         ]
     return []

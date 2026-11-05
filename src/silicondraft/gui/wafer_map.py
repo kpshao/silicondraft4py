@@ -356,6 +356,10 @@ class WaferMapView(QGraphicsView):
         self._overlay_enabled = enabled
         self._sync_overlay_layer()
 
+    def retranslate_ui(self) -> None:
+        """Rebuild the die tooltips in the current language."""
+        self._rebuild()
+
     # -- per-die facts ------------------------------------------------------
 
     def display_value(self, die_index: int) -> float:
@@ -545,16 +549,14 @@ class WaferMapPanel(QWidget):
         self.wafer_combo = QComboBox(self)
         self.color_combo = QComboBox(self)
         self.item_combo = QComboBox(self)
-        self.overlay_checkbox = QCheckBox(self.tr("Ground truth"), self)
+        self.overlay_checkbox = QCheckBox(self)
         self.legend_label = QLabel(self)
         self.overlay_label = QLabel(self)
+        self.wafer_label = QLabel(self)
+        self.color_label = QLabel(self)
 
-        for label, mode in (
-            (self.tr("Hard bin"), "hard_bin"),
-            (self.tr("Soft bin"), "soft_bin"),
-            (self.tr("Item"), "item"),
-        ):
-            self.color_combo.addItem(label, mode)
+        for mode in ("hard_bin", "soft_bin", "item"):
+            self.color_combo.addItem("", mode)
 
         self.wafer_combo.currentIndexChanged.connect(self._on_wafer_changed)
         self.color_combo.currentIndexChanged.connect(self._on_color_mode_changed)
@@ -562,9 +564,9 @@ class WaferMapPanel(QWidget):
         self.overlay_checkbox.toggled.connect(self._on_overlay_toggled)
 
         controls = QHBoxLayout()
-        controls.addWidget(QLabel(self.tr("Wafer:"), self))
+        controls.addWidget(self.wafer_label)
         controls.addWidget(self.wafer_combo)
-        controls.addWidget(QLabel(self.tr("Colour by:"), self))
+        controls.addWidget(self.color_label)
         controls.addWidget(self.color_combo)
         controls.addWidget(self.item_combo)
         controls.addWidget(self.overlay_checkbox)
@@ -575,6 +577,23 @@ class WaferMapPanel(QWidget):
         layout = QVBoxLayout(self)
         layout.addLayout(controls)
         layout.addWidget(self.map_view)
+        self.retranslate_ui()
+
+    def retranslate_ui(self) -> None:
+        """Re-apply every user-visible string in the current language."""
+        self.wafer_label.setText(self.tr("Wafer:"))
+        self.color_label.setText(self.tr("Colour by:"))
+        self.overlay_checkbox.setText(self.tr("Ground truth"))
+        labels = {
+            "hard_bin": self.tr("Hard bin"),
+            "soft_bin": self.tr("Soft bin"),
+            "item": self.tr("Item"),
+        }
+        for index in range(self.color_combo.count()):
+            mode = self.color_combo.itemData(index)
+            if isinstance(mode, str) and mode in labels:
+                self.color_combo.setItemText(index, labels[mode])
+        self.map_view.retranslate_ui()
         self._sync_controls()
 
     # -- population ---------------------------------------------------------

@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..scenario.models import CSV_LAYOUTS, CsvLayout, ExportOptions
+from .i18n import language_manager
 
 
 class ExportDialog(QDialog):
@@ -41,33 +42,32 @@ class ExportDialog(QDialog):
         export_options: ExportOptions | None = None,
     ) -> None:
         super().__init__(parent)
-        self.setWindowTitle(self.tr("Export Data"))
+        self._language_manager = language_manager()
+        self._language_manager.language_changed.connect(self.retranslate_ui)
         options = export_options if export_options is not None else ExportOptions()
 
         self.directory_edit = QLineEdit(str(output_dir), self)
-        self.directory_edit.setPlaceholderText(self.tr("Output directory"))
-        browse_button = QPushButton(self.tr("Browse..."), self)
-        browse_button.clicked.connect(self._browse)
+        self.browse_button = QPushButton(self)
+        self.browse_button.clicked.connect(self._browse)
 
         directory_row = QHBoxLayout()
         directory_row.addWidget(self.directory_edit)
-        directory_row.addWidget(browse_button)
+        directory_row.addWidget(self.browse_button)
 
-        self.format_label = QLabel(self.tr("CSV"), self)
+        self.output_label = QLabel(self)
+        self.format_caption = QLabel(self)
+        self.format_label = QLabel(self)
+        self.layout_caption = QLabel(self)
 
         self.layout_combo = QComboBox(self)
-        for label, layout_name in (
-            (self.tr("One CSV per lot (long)"), "long"),
-            (self.tr("One CSV per wafer (blocks)"), "blocks"),
-            (self.tr("Both layouts"), "both"),
-        ):
-            self.layout_combo.addItem(label, layout_name)
+        for layout_name in ("long", "blocks", "both"):
+            self.layout_combo.addItem("", layout_name)
         self.set_cp_csv_layout(options.cp_csv_layout)
 
-        self.ground_truth_checkbox = QCheckBox(self.tr("Write ground truth"), self)
+        self.ground_truth_checkbox = QCheckBox(self)
         self.ground_truth_checkbox.setChecked(options.ground_truth)
         self.ground_truth_checkbox.toggled.connect(self._sync_truth_controls)
-        self.die_truth_checkbox = QCheckBox(self.tr("Write per-die ground truth"), self)
+        self.die_truth_checkbox = QCheckBox(self)
         self.die_truth_checkbox.setChecked(options.ground_truth and options.include_die_truth)
         self._sync_truth_controls()
 
@@ -78,23 +78,49 @@ class ExportDialog(QDialog):
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel,
             parent=self,
         )
-        export_button = self._buttons.button(QDialogButtonBox.StandardButton.Ok)
-        if export_button is not None:
-            export_button.setText(self.tr("Export"))
         self._buttons.accepted.connect(self.accept)
         self._buttons.rejected.connect(self.reject)
 
         content_layout = QVBoxLayout(self)
-        content_layout.addWidget(QLabel(self.tr("Output directory"), self))
+        content_layout.addWidget(self.output_label)
         content_layout.addLayout(directory_row)
-        content_layout.addWidget(QLabel(self.tr("Format"), self))
+        content_layout.addWidget(self.format_caption)
         content_layout.addWidget(self.format_label)
-        content_layout.addWidget(QLabel(self.tr("CP CSV layout"), self))
+        content_layout.addWidget(self.layout_caption)
         content_layout.addWidget(self.layout_combo)
         content_layout.addWidget(self.ground_truth_checkbox)
         content_layout.addWidget(self.die_truth_checkbox)
         content_layout.addWidget(self.error_label)
         content_layout.addWidget(self._buttons)
+
+        self.retranslate_ui()
+
+    def retranslate_ui(self) -> None:
+        """Re-apply every user-visible string in the current language."""
+        self.setWindowTitle(self.tr("Export Data"))
+        self.directory_edit.setPlaceholderText(self.tr("Output directory"))
+        self.browse_button.setText(self.tr("Browse..."))
+        self.output_label.setText(self.tr("Output directory"))
+        self.format_caption.setText(self.tr("Format"))
+        self.format_label.setText(self.tr("CSV"))
+        self.layout_caption.setText(self.tr("CP CSV layout"))
+        layout_labels = {
+            "long": self.tr("One CSV per lot (long)"),
+            "blocks": self.tr("One CSV per wafer (blocks)"),
+            "both": self.tr("Both layouts"),
+        }
+        for index in range(self.layout_combo.count()):
+            layout_name = self.layout_combo.itemData(index)
+            if isinstance(layout_name, str) and layout_name in layout_labels:
+                self.layout_combo.setItemText(index, layout_labels[layout_name])
+        self.ground_truth_checkbox.setText(self.tr("Write ground truth"))
+        self.die_truth_checkbox.setText(self.tr("Write per-die ground truth"))
+        export_button = self._buttons.button(QDialogButtonBox.StandardButton.Ok)
+        if export_button is not None:
+            export_button.setText(self.tr("Export"))
+        cancel_button = self._buttons.button(QDialogButtonBox.StandardButton.Cancel)
+        if cancel_button is not None:
+            cancel_button.setText(self.tr("Cancel"))
 
     def output_dir(self) -> Path | None:
         """The chosen directory, or ``None`` when the field is empty."""

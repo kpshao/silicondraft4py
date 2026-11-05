@@ -44,6 +44,7 @@ from .geometry import (
     layout_wat_sites,
     nearest_die_indices,
 )
+from .i18n import _
 from .latent import (
     FACTORS,
     LatentModel,
@@ -206,7 +207,9 @@ def export(
             )
             paths.extend(export_ground_truth(result, out, include_die_truth=write_die_truth))
     except OSError as exc:
-        raise ExportError(f"cannot export to {out_dir}: {exc}") from exc
+        raise ExportError(
+            _("cannot export to {path}: {error}").format(path=out_dir, error=exc)
+        ) from exc
     return tuple(paths)
 
 
@@ -285,7 +288,9 @@ def generate_to_directory(
             write_manifest_file(manifest_path, builder.build())
             paths.append(manifest_path)
     except OSError as exc:
-        raise ExportError(f"cannot export to {out_dir}: {exc}") from exc
+        raise ExportError(
+            _("cannot export to {path}: {error}").format(path=out_dir, error=exc)
+        ) from exc
 
     summary = StreamingSummary(
         lot_count=lot_count,
@@ -479,16 +484,24 @@ def _iter_lots(
 def _check_formats(formats: Sequence[str]) -> None:
     requested = tuple(format_name.lower() for format_name in formats)
     if not requested:
-        raise ExportError("no export format requested; supported: csv")
+        raise ExportError(_("no export format requested; supported: csv"))
     unsupported = sorted({format_name for format_name in requested if format_name != "csv"})
     if unsupported:
-        raise ExportError(f"unsupported export format(s): {', '.join(unsupported)}; supported: csv")
+        raise ExportError(
+            _("unsupported export format(s): {formats}; supported: csv").format(
+                formats=", ".join(unsupported)
+            )
+        )
 
 
 def _check_cp_csv_layout(layout: str | None) -> None:
     if layout is not None and layout not in CSV_LAYOUTS:
         supported = ", ".join(CSV_LAYOUTS)
-        raise ExportError(f"unsupported CP CSV layout: {layout}; supported: {supported}")
+        raise ExportError(
+            _("unsupported CP CSV layout: {layout}; supported: {supported}").format(
+                layout=layout, supported=supported
+            )
+        )
 
 
 def _timeline_start(scenario: Scenario, generated_at: datetime) -> datetime:

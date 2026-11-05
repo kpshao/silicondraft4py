@@ -167,8 +167,10 @@ class TrendPanel(QWidget):
 
         self.metric_combo = QComboBox(self)
         self.view_combo = QComboBox(self)
-        self.view_combo.addItem(self.tr("By wafer"), "wafer")
-        self.view_combo.addItem(self.tr("By lot"), "lot")
+        self.view_combo.addItem("", "wafer")
+        self.view_combo.addItem("", "lot")
+        self.metric_label = QLabel(self)
+        self.view_label = QLabel(self)
         self.series_label = QLabel(self)
         self.series_label.setTextFormat(Qt.TextFormat.RichText)
         self.message_label = QLabel(self)
@@ -185,9 +187,9 @@ class TrendPanel(QWidget):
         self.view_combo.currentIndexChanged.connect(self._on_view_changed)
 
         controls = QHBoxLayout()
-        controls.addWidget(QLabel(self.tr("Metric:"), self))
+        controls.addWidget(self.metric_label)
         controls.addWidget(self.metric_combo)
-        controls.addWidget(QLabel(self.tr("View:"), self))
+        controls.addWidget(self.view_label)
         controls.addWidget(self.view_combo)
         controls.addStretch(1)
         controls.addWidget(self.series_label)
@@ -198,6 +200,17 @@ class TrendPanel(QWidget):
         layout.addWidget(self.notice_label)
         layout.addWidget(self.plot, 1)
 
+        self.retranslate_ui()
+
+    def retranslate_ui(self) -> None:
+        """Re-apply every user-visible string in the current language."""
+        self.metric_label.setText(self.tr("Metric:"))
+        self.view_label.setText(self.tr("View:"))
+        view_labels = {"wafer": self.tr("By wafer"), "lot": self.tr("By lot")}
+        for index in range(self.view_combo.count()):
+            view = self.view_combo.itemData(index)
+            if isinstance(view, str) and view in view_labels:
+                self.view_combo.setItemText(index, view_labels[view])
         self._rebuild_metric_combo()
         self._refresh()
 
