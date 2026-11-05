@@ -43,6 +43,7 @@ def test_gui_switches_language_without_restart(qtbot: QtBot) -> None:
     assert window.language_menu.title() == "语言"
     assert window.statusBar().currentMessage() == "就绪"
     assert window.language_actions["zh_CN"].isChecked()
+    assert window.language_combo.currentData() == "zh_CN"
 
     window.language_actions["en"].trigger()
     assert window.generate_action.text() == "Generate"
@@ -50,6 +51,24 @@ def test_gui_switches_language_without_restart(qtbot: QtBot) -> None:
     assert window.wafer_map_panel.overlay_checkbox.text() == "Ground truth"
     assert window.statusBar().currentMessage() == "Ready"
     assert window.language_actions["en"].isChecked()
+    assert window.language_combo.currentData() == "en"
+
+
+def test_toolbar_language_selector_switches_language(qtbot: QtBot) -> None:
+    window = MainWindow()
+    qtbot.addWidget(window)
+    assert window.language_label.text() == "Language:"
+    assert window.language_combo.currentData() == "en"
+
+    index = window.language_combo.findData("zh_CN")
+    assert index >= 0
+    window.language_combo.setCurrentIndex(index)
+
+    assert window.language == "zh_CN"
+    assert window.generate_action.text() == "生成"
+    assert window.language_label.text() == "语言："  # noqa: RUF001
+    assert window.language_combo.currentData() == "zh_CN"
+    assert window.language_actions["zh_CN"].isChecked()
 
 
 def test_standard_dialog_buttons_follow_the_language(qtbot: QtBot) -> None:

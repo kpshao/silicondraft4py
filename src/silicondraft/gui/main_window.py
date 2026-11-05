@@ -381,6 +381,14 @@ class MainWindow(QMainWindow):
         self.toolbar.addAction(self.cancel_action)
         self.toolbar.addSeparator()
         self.toolbar.addAction(self.export_action)
+        self.toolbar.addSeparator()
+        self.language_label = QLabel(self.toolbar)
+        self.toolbar.addWidget(self.language_label)
+        self.language_combo = QComboBox(self.toolbar)
+        for code in SUPPORTED_LANGUAGES:
+            self.language_combo.addItem(language_label(code), code)
+        self.language_combo.currentIndexChanged.connect(self._on_language_combo_changed)
+        self.toolbar.addWidget(self.language_combo)
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.toolbar)
 
         self.file_menu = self.menuBar().addMenu("")
@@ -429,6 +437,7 @@ class MainWindow(QMainWindow):
         self.exit_action.setText(self.tr("Exit"))
         self.toolbar.setWindowTitle(self.tr("Main"))
         self.preset_label.setText(self.tr("Preset:"))
+        self.language_label.setText(self.tr("Language:"))
         self.preset_combo.setItemText(0, self.tr("Custom"))
         self.file_menu.setTitle(self.tr("&File"))
         self.settings_menu.setTitle(self.tr("&Settings"))
@@ -462,6 +471,20 @@ class MainWindow(QMainWindow):
     def _sync_language_actions(self) -> None:
         for code, action in self.language_actions.items():
             action.setChecked(code == self.language)
+        index = self.language_combo.findData(self.language)
+        if index >= 0:
+            self.language_combo.blockSignals(True)
+            try:
+                self.language_combo.setCurrentIndex(index)
+            finally:
+                self.language_combo.blockSignals(False)
+
+    def _on_language_combo_changed(self, index: int) -> None:
+        code = self.language_combo.itemData(index)
+        if isinstance(code, str):
+            self._activate_language(code)
+        else:
+            self._sync_language_actions()
 
     def _activate_language(self, language: str) -> None:
         if not self.set_language(language):
