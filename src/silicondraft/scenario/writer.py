@@ -9,6 +9,7 @@ from typing import Any
 import yaml
 
 from ..errors import ScenarioError
+from ..i18n import _
 from .models import Scenario
 from .validation import validate_scenario_model
 
@@ -50,7 +51,9 @@ def save_scenario(scenario: Scenario, path: str | PathLike[str]) -> Path:
     try:
         file_path.write_text(text, encoding="utf-8")
     except OSError as exc:
-        raise OSError(f"cannot write scenario file {file_path}: {exc}") from exc
+        raise OSError(
+            _("cannot write scenario file {path}: {error}").format(path=file_path, error=exc)
+        ) from exc
     return file_path
 
 

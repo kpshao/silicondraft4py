@@ -26,8 +26,8 @@ from ..errors import ScenarioError, ValidationIssue
 from ..scenario import Scenario, save_scenario, validate_scenario_text
 from ..scenario.loader import parse_scenario_text
 from ..scenario.writer import scenario_yaml
+from .i18n import language_manager
 
-_YAML_PARSE_LOCATION = re.compile(r"line (\d+), column (\d+)")
 _ARRAY_INDEX = re.compile(r"\[\d+\]$")
 
 
@@ -42,14 +42,13 @@ class IssueLocation:
 def locate_issue(text: str, issue: ValidationIssue) -> IssueLocation | None:
     """Map a validation issue path onto the line holding that field.
 
-    YAML parse errors carry their own line and column in the message. Semantic
-    issues are mapped by composing the text into a node tree and recording the
-    start mark of each dotted path, falling back to the closest enclosing path
-    (or the document root) when the exact field is absent.
+    YAML parse errors carry their own line and column. Semantic issues are
+    mapped by composing the text into a node tree and recording the start mark
+    of each dotted path, falling back to the closest enclosing path (or the
+    document root) when the exact field is absent.
     """
-    match = _YAML_PARSE_LOCATION.search(issue.message)
-    if issue.code == "YAML_PARSE_ERROR" and match is not None:
-        return IssueLocation(int(match.group(1)), int(match.group(2)))
+    if issue.code == "YAML_PARSE_ERROR" and issue.line is not None and issue.column is not None:
+        return IssueLocation(issue.line, issue.column)
 
     try:
         root = yaml.compose(text, Loader=yaml.SafeLoader)
@@ -106,7 +105,8 @@ class YamlEditorDialog(QDialog):
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
-        self.setWindowTitle(self.tr("Scenario YAML Editor"))
+        self._language_manager = language_manager()
+        self._language_manager.language_changed.connect(self.retranslate_ui)
         self._path = Path(path) if path is not None else None
         self._saved_scenario: Scenario | None = None
         self._issues: tuple[ValidationIssue, ...] = ()
@@ -116,14 +116,14 @@ class YamlEditorDialog(QDialog):
         self.editor.setTabStopDistance(32)
         self.editor.setPlainText(scenario_yaml(scenario, include_preset=False))
 
-        self.issues_label = QLabel(self.tr("Issues"), self)
+        self.issues_label = QLabel(self)
         self.issues_list = QListWidget(self)
         self.status_label = QLabel(self)
         self.status_label.setWordWrap(True)
 
-        self.validate_button = QPushButton(self.tr("Validate"), self)
-        self.save_button = QPushButton(self.tr("Save"), self)
-        self.cancel_button = QPushButton(self.tr("Cancel"), self)
+        self.validate_button = QPushButton(self)
+        self.save_button = QPushButton(self)
+        self.cancel_button = QPushButton(self)
         self.validate_button.clicked.connect(self.validate)
         self.save_button.clicked.connect(self._save)
         self.cancel_button.clicked.connect(self.reject)
@@ -141,6 +141,15 @@ class YamlEditorDialog(QDialog):
         layout.addWidget(self.status_label)
         layout.addLayout(buttons)
         self.resize(760, 680)
+        self.retranslate_ui()
+
+    def retranslate_ui(self) -> None:
+        """Re-apply every static user-visible string in the current language."""
+        self.setWindowTitle(self.tr("Scenario YAML Editor"))
+        self.issues_label.setText(self.tr("Issues"))
+        self.validate_button.setText(self.tr("Validate"))
+        self.save_button.setText(self.tr("Save"))
+        self.cancel_button.setText(self.tr("Cancel"))
 
     # -- read-only state ----------------------------------------------------
 

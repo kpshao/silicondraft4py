@@ -11,6 +11,7 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
 from .errors import ValidationIssue
+from .i18n import _
 
 if TYPE_CHECKING:
     from .scenario.models import Distribution, ItemOverride, Items, TestPhase
@@ -246,7 +247,9 @@ def resolve_catalog(items: Items) -> CatalogResolution:
                 ValidationIssue(
                     code="DUPLICATE_ITEM_OVERRIDE",
                     path=f"{path}.id",
-                    message=f"item '{override.id}' is overridden more than once",
+                    message=_("item '{item}' is overridden more than once").format(
+                        item=override.id
+                    ),
                 )
             )
             continue
@@ -257,10 +260,10 @@ def resolve_catalog(items: Items) -> CatalogResolution:
                 ValidationIssue(
                     code="INVALID_ITEM_ID",
                     path=f"{path}.id",
-                    message=(
-                        f"invalid item id '{override.id}'; expected CP_* or WAT_* "
+                    message=_(
+                        "invalid item id '{item}'; expected CP_* or WAT_* "
                         "using uppercase letters, digits, and underscores"
-                    ),
+                    ).format(item=override.id),
                 )
             )
             continue
@@ -271,7 +274,9 @@ def resolve_catalog(items: Items) -> CatalogResolution:
                     ValidationIssue(
                         code="ITEM_REFERENCE_UNKNOWN",
                         path=f"{path}.id",
-                        message=f"cannot remove unknown test item '{override.id}'",
+                        message=_("cannot remove unknown test item '{item}'").format(
+                            item=override.id
+                        ),
                     )
                 )
             else:
@@ -311,7 +316,9 @@ def _new_item(
             ValidationIssue(
                 code="ITEM_OVERRIDE_INCOMPLETE",
                 path=f"{path}.{name}",
-                message=f"new item '{override.id}' requires '{name}'",
+                message=_("new item '{item}' requires '{field}'").format(
+                    item=override.id, field=name
+                ),
             )
         )
     if missing:
@@ -331,10 +338,9 @@ def _new_item(
             ValidationIssue(
                 code="ITEM_PHASE_MISMATCH",
                 path=f"{path}.id",
-                message=(
-                    f"item id '{override.id}' does not match phase "
-                    f"'{override.phase}'; expected prefix '{override.phase}_'"
-                ),
+                message=_(
+                    "item id '{item}' does not match phase '{phase}'; expected prefix '{phase}_'"
+                ).format(item=override.id, phase=override.phase),
             )
         )
 
@@ -362,9 +368,8 @@ def _patch_item(
             ValidationIssue(
                 code="ITEM_PHASE_CHANGE",
                 path=f"{path}.phase",
-                message=(
-                    f"cannot change phase of item '{existing.id}' "
-                    f"from {existing.phase} to {override.phase}"
+                message=_("cannot change phase of item '{item}' from {old} to {new}").format(
+                    item=existing.id, old=existing.phase, new=override.phase
                 ),
             )
         )
@@ -403,14 +408,17 @@ def _check_ascii_unit(item: CatalogItem, path: str, issues: list[ValidationIssue
     hint = item.unit
     for source, replacement in _ASCII_UNIT_REPLACEMENTS.items():
         hint = hint.replace(source, replacement)
-    suggestion = f"use '{hint}'" if hint.isascii() else "use ASCII unit notation"
+    if hint.isascii():
+        message = _(
+            "unit '{unit}' is not ASCII; use '{hint}' (µ→u, Ω→ohm, Å→angstrom, ²→2)"
+        ).format(unit=item.unit, hint=hint)
+    else:
+        message = _("unit '{unit}' is not ASCII; use ASCII unit notation").format(unit=item.unit)
     issues.append(
         ValidationIssue(
             code="ITEM_UNIT_NOT_ASCII",
             path=f"{path}.unit",
-            message=(
-                f"unit '{item.unit}' is not ASCII; {suggestion} (µ→u, Ω→ohm, Å→angstrom, ²→2)"
-            ),
+            message=message,
         )
     )
 
@@ -421,7 +429,9 @@ def _check_spec_limits(item: CatalogItem, path: str, issues: list[ValidationIssu
             ValidationIssue(
                 code="INVALID_SPEC_LIMITS",
                 path=path,
-                message=f"item '{item.id}' has LSL {item.lsl:g} >= USL {item.usl:g}",
+                message=_("item '{item}' has LSL {lsl:g} >= USL {usl:g}").format(
+                    item=item.id, lsl=item.lsl, usl=item.usl
+                ),
             )
         )
 
@@ -438,7 +448,9 @@ def _check_test_num_collision(
                 ValidationIssue(
                     code="DUPLICATE_TEST_NUM",
                     path=f"{path}.test_num",
-                    message=(f"test_num {item.test_num} is already used by '{other.id}'"),
+                    message=_("test_num {test_num} is already used by '{other}'").format(
+                        test_num=item.test_num, other=other.id
+                    ),
                 )
             )
             return

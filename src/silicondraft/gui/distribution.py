@@ -70,14 +70,14 @@ class DistributionPanel(QWidget):
 
         self.item_combo = QComboBox(self)
         self.item_combo.currentIndexChanged.connect(self._on_item_changed)
+        self.item_label = QLabel(self)
         self.stats_label = QLabel(self)
         self.plot = pg.PlotWidget(self)
         self.plot.setBackground("w")
         self.plot.showGrid(x=True, y=True, alpha=0.2)
-        self.plot.setLabel("left", self.tr("Die count"))
 
         controls = QHBoxLayout()
-        controls.addWidget(QLabel(self.tr("Item:"), self))
+        controls.addWidget(self.item_label)
         controls.addWidget(self.item_combo)
         controls.addStretch(1)
         controls.addWidget(self.stats_label)
@@ -85,6 +85,13 @@ class DistributionPanel(QWidget):
         layout = QVBoxLayout(self)
         layout.addLayout(controls)
         layout.addWidget(self.plot)
+        self.retranslate_ui()
+
+    def retranslate_ui(self) -> None:
+        """Re-apply every user-visible string in the current language."""
+        self.item_label.setText(self.tr("Item:"))
+        self.plot.setLabel("left", self.tr("Die count"))
+        self._recompute()
 
     # -- read-only state ----------------------------------------------------
 

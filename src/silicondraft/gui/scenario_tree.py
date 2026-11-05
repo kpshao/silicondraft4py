@@ -16,12 +16,30 @@ class ScenarioTree(QTreeWidget):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setHeaderLabels([self.tr("Setting"), self.tr("Value")])
+        self._scenario: Scenario | None = None
+        self._apply_header_labels()
         self.setColumnWidth(0, 280)
         self.setAlternatingRowColors(True)
 
     def set_scenario(self, scenario: Scenario) -> None:
         """Rebuild the tree for ``scenario``."""
+        self._scenario = scenario
+        self._rebuild()
+
+    def retranslate_ui(self) -> None:
+        """Re-apply every user-visible string in the current language."""
+        self._apply_header_labels()
+        if self._scenario is not None:
+            self._rebuild()
+
+    def _apply_header_labels(self) -> None:
+        self.setHeaderLabels([self.tr("Setting"), self.tr("Value")])
+
+    def _rebuild(self) -> None:
+        scenario = self._scenario
+        if scenario is None:
+            self.clear()
+            return
         self.clear()
         self._add_field(None, "schema_version", scenario.schema_version)
         self._add_field(

@@ -10,11 +10,15 @@ class ValidationIssue:
 
     ``path`` is a dotted field path with array indices, for example
     ``patterns[0].target_item``. ``code`` is stable for translation and tests.
+    YAML parse errors also carry one-based ``line`` and ``column`` values so
+    the GUI can locate them without parsing the translated message.
     """
 
     code: str
     path: str
     message: str
+    line: int | None = None
+    column: int | None = None
 
 
 class ScenarioError(ValueError):

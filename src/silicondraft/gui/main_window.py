@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QAction, QCloseEvent, QKeySequence
+from PySide6.QtGui import QAction, QActionGroup, QCloseEvent, QKeySequence
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -37,6 +37,7 @@ from ..scenario.models import CsvLayout
 from .correlation import CorrelationPanel
 from .distribution import DistributionPanel
 from .export_dialog import ExportDialog
+from .i18n import SUPPORTED_LANGUAGES, language_label, language_manager
 from .result_table import ResultsPanel
 from .scenario_tree import ScenarioTree
 from .trend import TrendPanel
@@ -63,6 +64,8 @@ class MainWindow(QMainWindow):
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
+        self._language_manager = language_manager()
+        self._language_manager.language_changed.connect(self.retranslate_ui)
         self._generate_fn = generate_fn
         self._scenario: Scenario | None = None
         self._scenario_path: Path | None = None
@@ -71,8 +74,11 @@ class MainWindow(QMainWindow):
         self._last_result: GenerationResult | None = None
         self._last_issues: tuple[ValidationIssue, ...] = ()
         self._last_export_paths: tuple[Path, ...] = ()
+        self._status_factory: Callable[[], str] | None = None
+        self._error_factory: Callable[[], str] | None = None
 
         self._build_ui()
+        self._sync_language_actions()
         self._update_actions()
         self._update_title()
 
@@ -108,6 +114,15 @@ class MainWindow(QMainWindow):
         """The files written by the most recent successful export."""
         return self._last_export_paths
 
+    @property
+    def language(self) -> str:
+        """The UI language code currently installed."""
+        return self._language_manager.language
+
+    def set_language(self, language: str) -> bool:
+        """Switch the UI language live and return whether the catalog loaded."""
+        return self._language_manager.set_language(language)
+
     # -- scenario state -----------------------------------------------------
 
     def load_path(self, path: str | Path) -> bool:
@@ -120,11 +135,11 @@ class MainWindow(QMainWindow):
         except ScenarioError as exc:
             self._show_issues(
                 exc.issues,
-                self.tr("Could not load scenario: {path}").format(path=file_path),
+                lambda: self.tr("Could not load scenario: {path}").format(path=file_path),
             )
             return False
         self.set_scenario(scenario, file_path)
-        self.statusBar().showMessage(self.tr("Loaded scenario: {path}").format(path=file_path))
+        self._set_status(lambda: self.tr("Loaded scenario: {path}").format(path=file_path))
         return True
 
     def save_to_path(self, path: str | Path) -> bool:
@@ -137,16 +152,21 @@ class MainWindow(QMainWindow):
         except ScenarioError as exc:
             self._show_issues(
                 exc.issues,
-                self.tr("Could not save scenario: {path}").format(path=file_path),
+                lambda: self.tr("Could not save scenario: {path}").format(path=file_path),
             )
             return False
         except OSError as exc:
-            self._show_error(self.tr("Could not save scenario: {message}").format(message=exc))
+            error_text = str(exc)
+
+            def save_error() -> str:
+                return self.tr("Could not save scenario: {message}").format(message=error_text)
+
+            self._show_error(save_error)
             return False
         self._scenario_path = file_path
         self._clear_issues()
         self._update_title()
-        self.statusBar().showMessage(self.tr("Saved scenario: {path}").format(path=file_path))
+        self._set_status(lambda: self.tr("Saved scenario: {path}").format(path=file_path))
         return True
 
     def set_scenario(self, scenario: Scenario, path: str | Path | None = None) -> None:
@@ -177,12 +197,12 @@ class MainWindow(QMainWindow):
         except ScenarioError as exc:
             self._show_issues(
                 exc.issues,
-                self.tr("Could not apply preset: {name}").format(name=name),
+                lambda: self.tr("Could not apply preset: {name}").format(name=name),
             )
             self._sync_preset_combo()
             return False
         self.set_scenario(scenario)
-        self.statusBar().showMessage(self.tr("Applied preset: {name}").format(name=name))
+        self._set_status(lambda: self.tr("Applied preset: {name}").format(name=name))
         return True
 
     # -- generation ---------------------------------------------------------
@@ -209,7 +229,7 @@ class MainWindow(QMainWindow):
         worker.finished.connect(self._on_worker_finished)
         self._worker = worker
         self._update_actions()
-        self.statusBar().showMessage(self.tr("Generating..."))
+        self._set_status(lambda: self.tr("Generating..."))
         worker.start()
         return True
 
@@ -218,7 +238,7 @@ class MainWindow(QMainWindow):
         if self._worker is None or self._worker_settled:
             return
         self.cancel_action.setEnabled(False)
-        self.statusBar().showMessage(self.tr("Cancelling..."))
+        self._set_status(lambda: self.tr("Cancelling..."))
         self._worker.cancel()
 
     # -- export -------------------------------------------------------------
@@ -241,9 +261,12 @@ class MainWindow(QMainWindow):
             return False
         options = result.scenario.export
         if not (options.cp_csv or options.wat_csv):
-            message = self.tr("the scenario has no CSV export enabled.")
             self._last_export_paths = ()
-            self._show_error(self.tr("Export failed: {message}").format(message=message))
+            self._show_error(
+                lambda: self.tr("Export failed: {message}").format(
+                    message=self.tr("the scenario has no CSV export enabled.")
+                )
+            )
             return False
         try:
             paths = export(
@@ -256,12 +279,19 @@ class MainWindow(QMainWindow):
             )
         except Exception as exc:
             self._last_export_paths = ()
-            self._show_error(self.tr("Export failed: {message}").format(message=exc))
+            error_text = str(exc)
+
+            def export_error() -> str:
+                return self.tr("Export failed: {message}").format(message=error_text)
+
+            self._show_error(export_error)
             return False
         self._last_export_paths = paths
         self._clear_issues()
-        self.statusBar().showMessage(
-            self.tr("Exported {count} file(s) to {path}").format(count=len(paths), path=out_dir)
+        self._set_status(
+            lambda: self.tr("Exported {count} file(s) to {path}").format(
+                count=len(paths), path=out_dir
+            )
         )
         return True
 
@@ -274,7 +304,7 @@ class MainWindow(QMainWindow):
     def _build_ui(self) -> None:
         self.tree = ScenarioTree(self)
 
-        self.issues_label = QLabel(self.tr("Configuration issues"), self)
+        self.issues_label = QLabel(self)
         self.issues_list = QListWidget(self)
         self.issues_panel = QWidget(self)
         issues_layout = QVBoxLayout(self.issues_panel)
@@ -287,12 +317,15 @@ class MainWindow(QMainWindow):
         self.trend_panel = TrendPanel(self)
         self.results_panel = ResultsPanel(self)
         self.preview_tabs = QTabWidget(self)
-        self.preview_tabs.addTab(self.wafer_map_panel, self.tr("Wafer Map"))
-        self.preview_tabs.addTab(self.distribution_panel, self.tr("Distribution"))
-        self.preview_tabs.addTab(self.correlation_panel, self.tr("Correlation"))
-        self.preview_tabs.addTab(self.trend_panel, self.tr("Trend"))
-        self.preview_tabs.addTab(self.results_panel, self.tr("Results"))
-        self.preview_tabs.addTab(self.issues_panel, self.tr("Issues"))
+        for panel in (
+            self.wafer_map_panel,
+            self.distribution_panel,
+            self.correlation_panel,
+            self.trend_panel,
+            self.results_panel,
+            self.issues_panel,
+        ):
+            self.preview_tabs.addTab(panel, "")
 
         splitter = QSplitter(Qt.Orientation.Horizontal, self)
         splitter.addWidget(self.tree)
@@ -301,78 +334,171 @@ class MainWindow(QMainWindow):
         splitter.setStretchFactor(1, 2)
         self.setCentralWidget(splitter)
 
-        self.open_action = QAction(self.tr("Open..."), self)
+        self.open_action = QAction(self)
         self.open_action.setShortcut(QKeySequence.StandardKey.Open)
         self.open_action.triggered.connect(self._open_scenario)
 
-        self.save_action = QAction(self.tr("Save"), self)
+        self.save_action = QAction(self)
         self.save_action.setShortcut(QKeySequence.StandardKey.Save)
         self.save_action.triggered.connect(self._save_scenario)
 
-        self.save_as_action = QAction(self.tr("Save As..."), self)
+        self.save_as_action = QAction(self)
         self.save_as_action.triggered.connect(self._save_scenario_as)
 
-        self.yaml_editor_action = QAction(self.tr("YAML Editor..."), self)
+        self.yaml_editor_action = QAction(self)
         self.yaml_editor_action.triggered.connect(self._open_yaml_editor)
 
-        self.generate_action = QAction(self.tr("Generate"), self)
+        self.generate_action = QAction(self)
         self.generate_action.triggered.connect(self.start_generation)
 
-        self.cancel_action = QAction(self.tr("Cancel"), self)
+        self.cancel_action = QAction(self)
         self.cancel_action.triggered.connect(self.cancel_generation)
 
-        self.export_action = QAction(self.tr("Export..."), self)
+        self.export_action = QAction(self)
         self.export_action.triggered.connect(self._open_export_dialog)
 
-        toolbar = QToolBar(self.tr("Main"), self)
-        toolbar.setMovable(False)
-        toolbar.addAction(self.open_action)
-        toolbar.addAction(self.save_action)
-        toolbar.addAction(self.save_as_action)
-        toolbar.addAction(self.yaml_editor_action)
-        toolbar.addSeparator()
-        toolbar.addWidget(QLabel(self.tr("Preset:"), toolbar))
-        self.preset_combo = QComboBox(toolbar)
-        self.preset_combo.addItem(self.tr("Custom"), None)
+        self.exit_action = QAction(self)
+        self.exit_action.setShortcut(QKeySequence.StandardKey.Quit)
+        self.exit_action.triggered.connect(self.close)
+
+        self.toolbar = QToolBar(self)
+        self.toolbar.setMovable(False)
+        self.toolbar.addAction(self.open_action)
+        self.toolbar.addAction(self.save_action)
+        self.toolbar.addAction(self.save_as_action)
+        self.toolbar.addAction(self.yaml_editor_action)
+        self.toolbar.addSeparator()
+        self.preset_label = QLabel(self.toolbar)
+        self.toolbar.addWidget(self.preset_label)
+        self.preset_combo = QComboBox(self.toolbar)
+        self.preset_combo.addItem("", None)
         for name in PRESET_NAMES:
             self.preset_combo.addItem(name, name)
         self.preset_combo.currentIndexChanged.connect(self._on_preset_changed)
-        toolbar.addWidget(self.preset_combo)
-        toolbar.addSeparator()
-        toolbar.addAction(self.generate_action)
-        toolbar.addAction(self.cancel_action)
-        toolbar.addSeparator()
-        toolbar.addAction(self.export_action)
-        self.addToolBar(Qt.ToolBarArea.TopToolBarArea, toolbar)
+        self.toolbar.addWidget(self.preset_combo)
+        self.toolbar.addSeparator()
+        self.toolbar.addAction(self.generate_action)
+        self.toolbar.addAction(self.cancel_action)
+        self.toolbar.addSeparator()
+        self.toolbar.addAction(self.export_action)
+        self.toolbar.addSeparator()
+        self.language_label = QLabel(self.toolbar)
+        self.toolbar.addWidget(self.language_label)
+        self.language_combo = QComboBox(self.toolbar)
+        for code in SUPPORTED_LANGUAGES:
+            self.language_combo.addItem(language_label(code), code)
+        self.language_combo.currentIndexChanged.connect(self._on_language_combo_changed)
+        self.toolbar.addWidget(self.language_combo)
+        self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.toolbar)
 
-        file_menu = self.menuBar().addMenu(self.tr("&File"))
-        file_menu.addAction(self.open_action)
-        file_menu.addAction(self.save_action)
-        file_menu.addAction(self.save_as_action)
-        file_menu.addAction(self.yaml_editor_action)
-        file_menu.addSeparator()
-        exit_action = QAction(self.tr("Exit"), self)
-        exit_action.setShortcut(QKeySequence.StandardKey.Quit)
-        exit_action.triggered.connect(self.close)
-        file_menu.addAction(exit_action)
+        self.file_menu = self.menuBar().addMenu("")
+        self.file_menu.addAction(self.open_action)
+        self.file_menu.addAction(self.save_action)
+        self.file_menu.addAction(self.save_as_action)
+        self.file_menu.addAction(self.yaml_editor_action)
+        self.file_menu.addSeparator()
+        self.file_menu.addAction(self.exit_action)
+
+        self.settings_menu = self.menuBar().addMenu("")
+        self.language_menu = self.settings_menu.addMenu("")
+        self.language_action_group = QActionGroup(self)
+        self.language_action_group.setExclusive(True)
+        self.language_actions: dict[str, QAction] = {}
+        for code in SUPPORTED_LANGUAGES:
+            action = QAction(language_label(code), self)
+            action.setCheckable(True)
+            action.setData(code)
+            action.triggered.connect(
+                lambda _checked=False, language=code: self._activate_language(language)
+            )
+            self.language_action_group.addAction(action)
+            self.language_menu.addAction(action)
+            self.language_actions[code] = action
 
         self.progress_bar = QProgressBar(self)
-        self.progress_bar.setFormat(self.tr("%v / %m"))
         self.progress_bar.setMaximumWidth(280)
         self.progress_bar.setVisible(False)
         self.statusBar().addPermanentWidget(self.progress_bar)
-        self.statusBar().showMessage(self.tr("Ready"))
+        self._set_status(lambda: self.tr("Ready"))
 
         self.resize(1000, 700)
         self._sync_preset_combo()
+        self.retranslate_ui()
+
+    def retranslate_ui(self) -> None:
+        """Re-apply every user-visible string in the current language."""
+        self.open_action.setText(self.tr("Open..."))
+        self.save_action.setText(self.tr("Save"))
+        self.save_as_action.setText(self.tr("Save As..."))
+        self.yaml_editor_action.setText(self.tr("YAML Editor..."))
+        self.generate_action.setText(self.tr("Generate"))
+        self.cancel_action.setText(self.tr("Cancel"))
+        self.export_action.setText(self.tr("Export..."))
+        self.exit_action.setText(self.tr("Exit"))
+        self.toolbar.setWindowTitle(self.tr("Main"))
+        self.preset_label.setText(self.tr("Preset:"))
+        self.language_label.setText(self.tr("Language:"))
+        self.preset_combo.setItemText(0, self.tr("Custom"))
+        self.file_menu.setTitle(self.tr("&File"))
+        self.settings_menu.setTitle(self.tr("&Settings"))
+        self.language_menu.setTitle(self.tr("Language"))
+        self.issues_label.setText(self.tr("Configuration issues"))
+        self.progress_bar.setFormat("%v / %m")
+        tab_titles = (
+            self.tr("Wafer Map"),
+            self.tr("Distribution"),
+            self.tr("Correlation"),
+            self.tr("Trend"),
+            self.tr("Results"),
+            self.tr("Issues"),
+        )
+        for index, title in enumerate(tab_titles):
+            self.preview_tabs.setTabText(index, title)
+        self.tree.retranslate_ui()
+        self.wafer_map_panel.retranslate_ui()
+        self.distribution_panel.retranslate_ui()
+        self.correlation_panel.retranslate_ui()
+        self.trend_panel.retranslate_ui()
+        self.results_panel.retranslate_ui()
+        if self._last_issues:
+            self._fill_issue_list()
+        elif self._error_factory is not None:
+            self._fill_error(self._error_factory())
+        self._refresh_status()
+        self._sync_language_actions()
+        self._update_title()
+
+    def _sync_language_actions(self) -> None:
+        for code, action in self.language_actions.items():
+            action.setChecked(code == self.language)
+        index = self.language_combo.findData(self.language)
+        if index >= 0:
+            self.language_combo.blockSignals(True)
+            try:
+                self.language_combo.setCurrentIndex(index)
+            finally:
+                self.language_combo.blockSignals(False)
+
+    def _on_language_combo_changed(self, index: int) -> None:
+        code = self.language_combo.itemData(index)
+        if isinstance(code, str):
+            self._activate_language(code)
+        else:
+            self._sync_language_actions()
+
+    def _activate_language(self, language: str) -> None:
+        if not self.set_language(language):
+            self._sync_language_actions()
 
     # -- worker signal handlers ---------------------------------------------
 
     def _on_progress(self, progress: GenerationProgress) -> None:
         self.progress_bar.setRange(0, progress.total_wafers)
         self.progress_bar.setValue(progress.completed_wafers)
-        self.statusBar().showMessage(
-            self.tr("Generating {lot_id} / {wafer_id}: {completed} of {total} wafers").format(
+        self._set_status(
+            lambda: self.tr(
+                "Generating {lot_id} / {wafer_id}: {completed} of {total} wafers"
+            ).format(
                 lot_id=progress.lot_id,
                 wafer_id=progress.wafer_id,
                 completed=progress.completed_wafers,
@@ -388,10 +514,10 @@ class MainWindow(QMainWindow):
         die_count = sum(lot.die_count for lot in result.lots)
         self._set_preview_result(result)
         self.preview_tabs.setCurrentWidget(self.wafer_map_panel)
-        self.statusBar().showMessage(
-            self.tr("Generation complete: {lots} lot(s), {wafers} wafer(s), {dies} die(s)").format(
-                lots=len(result.lots), wafers=wafer_count, dies=die_count
-            )
+        self._set_status(
+            lambda: self.tr(
+                "Generation complete: {lots} lot(s), {wafers} wafer(s), {dies} die(s)"
+            ).format(lots=len(result.lots), wafers=wafer_count, dies=die_count)
         )
         self.generation_succeeded.emit(result)
 
@@ -399,7 +525,7 @@ class MainWindow(QMainWindow):
         self._worker_settled = True
         self._show_issues(
             issues,
-            self.tr("Generation failed: the scenario has {count} issue(s)").format(
+            lambda: self.tr("Generation failed: the scenario has {count} issue(s)").format(
                 count=len(issues)
             ),
         )
@@ -407,12 +533,12 @@ class MainWindow(QMainWindow):
 
     def _on_failed(self, message: str) -> None:
         self._worker_settled = True
-        self._show_error(self.tr("Generation failed: {message}").format(message=message))
+        self._show_error(lambda: self.tr("Generation failed: {message}").format(message=message))
         self.generation_error.emit(message)
 
     def _on_cancelled(self) -> None:
         self._worker_settled = True
-        self.statusBar().showMessage(self.tr("Generation cancelled."))
+        self._set_status(lambda: self.tr("Generation cancelled."))
         self.generation_cancelled.emit()
 
     def _on_worker_finished(self) -> None:
@@ -506,23 +632,40 @@ class MainWindow(QMainWindow):
         finally:
             self.preset_combo.blockSignals(False)
 
-    def _show_issues(self, issues: Sequence[ValidationIssue], message: str) -> None:
+    def _show_issues(self, issues: Sequence[ValidationIssue], message: Callable[[], str]) -> None:
         self._last_issues = tuple(issues)
-        self.issues_list.clear()
-        for issue in issues:
-            self.issues_list.addItem(f"{issue.path}: {issue.message} [{issue.code}]")
+        self._error_factory = None
+        self._fill_issue_list()
         self.preview_tabs.setCurrentWidget(self.issues_panel)
-        self.statusBar().showMessage(message)
+        self._set_status(message)
 
-    def _show_error(self, message: str) -> None:
+    def _show_error(self, message: Callable[[], str]) -> None:
         self._last_issues = ()
+        self._error_factory = message
+        self._fill_error(message())
+        self.preview_tabs.setCurrentWidget(self.issues_panel)
+        self._set_status(message)
+
+    def _fill_issue_list(self) -> None:
+        self.issues_list.clear()
+        for issue in self._last_issues:
+            self.issues_list.addItem(f"{issue.path}: {issue.message} [{issue.code}]")
+
+    def _fill_error(self, message: str) -> None:
         self.issues_list.clear()
         self.issues_list.addItem(message)
-        self.preview_tabs.setCurrentWidget(self.issues_panel)
-        self.statusBar().showMessage(message)
+
+    def _set_status(self, message: Callable[[], str]) -> None:
+        self._status_factory = message
+        self._refresh_status()
+
+    def _refresh_status(self) -> None:
+        if self._status_factory is not None:
+            self.statusBar().showMessage(self._status_factory())
 
     def _clear_issues(self) -> None:
         self._last_issues = ()
+        self._error_factory = None
         self.issues_list.clear()
 
     def _set_preview_result(self, result: GenerationResult | None) -> None:

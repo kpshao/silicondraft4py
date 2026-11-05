@@ -5,9 +5,11 @@ from __future__ import annotations
 import sys
 from collections.abc import Sequence
 
+from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication
 
 from .. import __version__
+from .i18n import language_manager
 from .main_window import MainWindow
 
 APPLICATION_NAME = "SiliconDraft"
@@ -30,6 +32,7 @@ def create_application(argv: Sequence[str] | None = None) -> QApplication:
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the desktop application and return its exit code."""
     app = create_application(argv)
+    language_manager(app).restore(QSettings())
     window = MainWindow()
     window.show()
     return int(app.exec())

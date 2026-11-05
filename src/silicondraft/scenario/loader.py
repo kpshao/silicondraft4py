@@ -9,6 +9,7 @@ import yaml
 from pydantic import ValidationError
 
 from ..errors import ScenarioError, ValidationIssue
+from ..i18n import _
 from .models import Scenario
 from .presets import expand_preset
 
@@ -53,21 +54,21 @@ def read_scenario_data(path: str | PathLike[str]) -> object:
         _raise_scenario_error(
             "FILE_NOT_FOUND",
             "<file>",
-            f"scenario file not found: {file_path}",
+            _("scenario file not found: {path}").format(path=file_path),
             exc,
         )
     except UnicodeDecodeError as exc:
         _raise_scenario_error(
             "FILE_ENCODING_ERROR",
             "<file>",
-            f"scenario file {file_path} is not valid UTF-8: {exc}",
+            _("scenario file {path} is not valid UTF-8: {error}").format(path=file_path, error=exc),
             exc,
         )
     except OSError as exc:
         _raise_scenario_error(
             "FILE_READ_ERROR",
             "<file>",
-            f"cannot read scenario file {file_path}: {exc}",
+            _("cannot read scenario file {path}: {error}").format(path=file_path, error=exc),
             exc,
         )
     return parse_yaml_document(text)
@@ -80,36 +81,48 @@ def parse_yaml_document(text: str) -> object:
     except yaml.MarkedYAMLError as exc:
         mark = exc.problem_mark
         if mark is None:
-            message = f"YAML parse error: {exc.problem or exc}"
-        else:
-            message = (
-                f"YAML parse error at line {mark.line + 1}, column {mark.column + 1}: "
-                f"{exc.problem or 'invalid YAML'}"
-            )
-        _raise_scenario_error("YAML_PARSE_ERROR", "<document>", message, exc)
+            message = _("YAML parse error: {error}").format(error=exc.problem or exc)
+            _raise_scenario_error("YAML_PARSE_ERROR", "<document>", message, exc)
+        line = mark.line + 1
+        column = mark.column + 1
+        message = _("YAML parse error at line {line}, column {column}: {problem}").format(
+            line=line,
+            column=column,
+            problem=exc.problem or _("invalid YAML"),
+        )
+        _raise_scenario_error(
+            "YAML_PARSE_ERROR", "<document>", message, exc, line=line, column=column
+        )
     except yaml.YAMLError as exc:
         _raise_scenario_error(
             "YAML_PARSE_ERROR",
             "<document>",
-            f"YAML parse error: {exc}",
+            _("YAML parse error: {error}").format(error=exc),
             exc,
         )
 
     if data is None:
-        _raise_scenario_error("SCENARIO_EMPTY", "<document>", "scenario document is empty")
+        _raise_scenario_error("SCENARIO_EMPTY", "<document>", _("scenario document is empty"))
     if not isinstance(data, dict):
         _raise_scenario_error(
             "SCENARIO_NOT_MAPPING",
             "<document>",
-            "scenario document must be a mapping of sections",
+            _("scenario document must be a mapping of sections"),
         )
     return data
 
 
 def _raise_scenario_error(
-    code: str, path: str, message: str, cause: BaseException | None = None
+    code: str,
+    path: str,
+    message: str,
+    cause: BaseException | None = None,
+    *,
+    line: int | None = None,
+    column: int | None = None,
 ) -> NoReturn:
-    error = ScenarioError([ValidationIssue(code=code, path=path, message=message)])
+    issue = ValidationIssue(code=code, path=path, message=message, line=line, column=column)
+    error = ScenarioError([issue])
     if cause is None:
         raise error
     raise error from cause

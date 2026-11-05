@@ -145,6 +145,7 @@ class CorrelationPanel(QWidget):
         self._scatter_y = np.empty(0, dtype=np.float64)
 
         self.pair_combo = QComboBox(self)
+        self.pair_label = QLabel(self)
         self.target_label = QLabel(self)
         self.summary_label = QLabel(self)
         self.message_label = QLabel(self)
@@ -162,7 +163,7 @@ class CorrelationPanel(QWidget):
         self.pair_combo.currentIndexChanged.connect(self._on_pair_changed)
 
         controls = QHBoxLayout()
-        controls.addWidget(QLabel(self.tr("Pair:"), self))
+        controls.addWidget(self.pair_label)
         controls.addWidget(self.pair_combo)
         controls.addWidget(self.target_label)
         controls.addWidget(self.summary_label)
@@ -172,6 +173,11 @@ class CorrelationPanel(QWidget):
         layout.addLayout(controls)
         layout.addWidget(self.message_label)
         layout.addWidget(self.plot, 1)
+        self.retranslate_ui()
+
+    def retranslate_ui(self) -> None:
+        """Re-apply every user-visible string in the current language."""
+        self.pair_label.setText(self.tr("Pair:"))
         self._refresh()
 
     # -- read-only state ----------------------------------------------------

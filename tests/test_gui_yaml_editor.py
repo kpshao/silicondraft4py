@@ -9,6 +9,7 @@ from pytestqt.qtbot import QtBot
 
 from silicondraft import load_scenario, scenario_from_preset
 from silicondraft.cli import main
+from silicondraft.gui.i18n import language_manager
 from silicondraft.gui.main_window import MainWindow
 from silicondraft.gui.yaml_editor import YamlEditorDialog
 from silicondraft.scenario import validate_scenario_text
@@ -144,6 +145,22 @@ def test_invalid_yaml_syntax_moves_the_cursor_to_the_parse_error(
     assert dialog.issues[0].code == "YAML_PARSE_ERROR"
     assert dialog.editor.textCursor().blockNumber() + 1 == 2
     assert "line 2" in dialog.issues_list.item(0).text()
+
+
+def test_yaml_parse_error_keeps_its_location_in_chinese(qtbot: QtBot, tmp_path: Path) -> None:
+    assert language_manager().set_language("zh_CN")
+    scenario = load_scenario(_write_scenario(tmp_path))
+    dialog = YamlEditorDialog(scenario)
+    qtbot.addWidget(dialog)
+    dialog.show()
+
+    dialog.set_text("schema_version: 1\n\tproduct: TEST55\n")
+
+    assert not dialog.validate()
+
+    assert dialog.issues[0].code == "YAML_PARSE_ERROR"
+    assert dialog.editor.textCursor().blockNumber() + 1 == 2
+    assert "第 2 行" in dialog.issues_list.item(0).text()
 
 
 def test_yaml_editor_expands_presets_and_keeps_edits_authoritative(
