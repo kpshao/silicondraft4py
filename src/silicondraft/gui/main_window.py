@@ -115,6 +115,11 @@ class MainWindow(QMainWindow):
         return self._last_export_paths
 
     @property
+    def last_error(self) -> str | None:
+        """The message of the most recent error shown, if any."""
+        return self._error_factory() if self._error_factory is not None else None
+
+    @property
     def language(self) -> str:
         """The UI language code currently installed."""
         return self._language_manager.language

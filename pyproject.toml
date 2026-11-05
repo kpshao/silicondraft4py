@@ -37,6 +37,8 @@ dev = [
     "hypothesis>=6.122",
     "jsonschema>=4.23",
     "mypy>=1.15",
+    "packaging>=24,<27",
+    "pyinstaller>=6.16,<7",
     "pyqtgraph>=0.13,<1",
     "pyside6-essentials>=6.8,<7",
     "pystdf>=1.4,<2",
@@ -53,6 +55,7 @@ packages = ["src/silicondraft"]
 [tool.pytest.ini_options]
 addopts = "-ra"
 testpaths = ["tests"]
+pythonpath = ["."]
 qt_api = "pyside6"
 
 [tool.ruff]
@@ -66,7 +69,7 @@ select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 [tool.mypy]
 python_version = "3.13"
 strict = true
-files = ["src", "tests"]
+files = ["src", "tests", "buildtools", "scripts"]
 
 [[tool.mypy.overrides]]
 module = ["pyqtgraph", "pyqtgraph.*", "pystdf", "pystdf.*"]
