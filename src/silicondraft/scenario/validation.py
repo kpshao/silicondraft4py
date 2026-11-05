@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from os import PathLike
 from string import Formatter
 
+from ..binning import BinDefinition, resolve_bin_table
+from ..binroles import HARD_BIN_ROLES, SOFT_BIN_ROLES
 from ..catalog import Catalog, can_fail, resolve_catalog
 from ..errors import ScenarioError, ValidationIssue
 from ..geometry import count_dies
@@ -14,6 +16,7 @@ from .models import (
     PATTERN_REQUIRED_EXTENTS,
     PATTERN_SIGNED_AMPLITUDE_KINDS,
     YIELD_FAILURE_ITEM_IDS,
+    Bins,
     Defects,
     ExportOptions,
     Items,
@@ -99,6 +102,7 @@ def validate_scenario_model(scenario: Scenario) -> ValidationResult:
     resolution = resolve_catalog(scenario.items)
     issues: list[ValidationIssue] = list(resolution.issues)
     issues.extend(_validate_geometry(scenario.wafer))
+    issues.extend(_validate_bins(scenario.bins))
     issues.extend(_validate_lots(scenario.lots))
     issues.extend(_validate_patterns(scenario.patterns, resolution.catalog))
     issues.extend(_validate_defects(scenario.defects, resolution.catalog))
@@ -184,6 +188,41 @@ def _validate_geometry(wafer: Wafer) -> list[ValidationIssue]:
             )
         ]
     return []
+
+
+def _validate_bins(bins: Bins) -> list[ValidationIssue]:
+    table = resolve_bin_table(bins)
+    issues = _duplicate_bin_code_issues("hard", table.hard, HARD_BIN_ROLES, set(bins.hard))
+    issues.extend(_duplicate_bin_code_issues("soft", table.soft, SOFT_BIN_ROLES, set(bins.soft)))
+    return issues
+
+
+def _duplicate_bin_code_issues(
+    kind: str,
+    definitions: tuple[BinDefinition, ...],
+    roles: tuple[str, ...],
+    overridden_roles: set[str],
+) -> list[ValidationIssue]:
+    roles_by_number: dict[int, list[str]] = {}
+    for role, definition in zip(roles, definitions, strict=True):
+        roles_by_number.setdefault(definition.number, []).append(role)
+
+    issues: list[ValidationIssue] = []
+    for number, duplicated in roles_by_number.items():
+        if len(duplicated) < 2:
+            continue
+        reported = [role for role in duplicated if role in overridden_roles] or duplicated[1:]
+        issues.extend(
+            ValidationIssue(
+                code="DUPLICATE_BIN_CODE",
+                path=f"bins.{kind}.{role}.code",
+                message=_("{kind} bin code {number} is used by more than one role").format(
+                    kind=kind, number=number
+                ),
+            )
+            for role in reported
+        )
+    return issues
 
 
 def _validate_lots(lots: Lots) -> list[ValidationIssue]:

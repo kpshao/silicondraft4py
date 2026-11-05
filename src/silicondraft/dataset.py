@@ -8,10 +8,11 @@ import numpy as np
 from numpy.typing import NDArray
 
 from .binning import (
-    HARD_BIN_DEFINITIONS,
-    SOFT_BIN_DEFINITIONS,
+    DEFAULT_BIN_TABLE,
     BinParetoEntry,
+    BinTable,
     bin_pareto,
+    resolve_bin_table,
 )
 from .catalog import CatalogItem
 from .defects import DefectCluster
@@ -42,6 +43,7 @@ class CPWafer:
     defect_failure: BoolArray
     defect_clusters: tuple[DefectCluster, ...]
     tested_at: datetime
+    bin_table: BinTable = DEFAULT_BIN_TABLE
 
     @property
     def die_count(self) -> int:
@@ -61,12 +63,12 @@ class CPWafer:
     @property
     def hard_bin_pareto(self) -> tuple[BinParetoEntry, ...]:
         """Hard-bin counts on this wafer, most frequent first."""
-        return bin_pareto(self.hard_bin, HARD_BIN_DEFINITIONS)
+        return bin_pareto(self.hard_bin, self.bin_table.hard)
 
     @property
     def soft_bin_pareto(self) -> tuple[BinParetoEntry, ...]:
         """Soft-bin counts on this wafer, most frequent first."""
-        return bin_pareto(self.soft_bin, SOFT_BIN_DEFINITIONS)
+        return bin_pareto(self.soft_bin, self.bin_table.soft)
 
 
 @dataclass(frozen=True, slots=True)
@@ -198,3 +200,8 @@ class GenerationResult:
     linkage_report: tuple[LinkageReportEntry, ...]
     pattern_reports: tuple[PatternReport, ...]
     generated_at: datetime
+
+    @property
+    def bin_table(self) -> BinTable:
+        """The resolved bin table for this result's scenario."""
+        return resolve_bin_table(self.scenario.bins)

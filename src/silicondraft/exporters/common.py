@@ -7,8 +7,11 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as package_version
+from pathlib import Path
 from typing import Protocol
 
+from ..errors import ExportError
+from ..i18n import _
 from ..scenario.models import Scenario
 
 _UNSAFE_FILENAME_CHARS = re.compile(r"[^A-Za-z0-9_.-]+")
@@ -18,6 +21,17 @@ class CsvWriter(Protocol):
     """The subset of ``csv.writer`` used by the exporters."""
 
     def writerow(self, row: Sequence[object]) -> object: ...
+
+
+def ensure_output_path(path: Path, *, overwrite: bool) -> None:
+    """Refuse to replace an existing artifact unless ``overwrite`` is set."""
+    if path.exists() and not overwrite:
+        raise ExportError(
+            _(
+                "output file already exists: {path}; "
+                "use the overwrite option (--overwrite) to replace it"
+            ).format(path=path)
+        )
 
 
 def format_float(value: float) -> str:

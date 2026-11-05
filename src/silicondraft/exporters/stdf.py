@@ -13,17 +13,18 @@ from __future__ import annotations
 import math
 import struct
 from collections import Counter
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import BinaryIO, Final
 
-from ..binning import HARD_BIN_DEFINITIONS, SOFT_BIN_DEFINITIONS, BinDefinition, item_passed
+from ..binning import BinDefinition, item_passed
 from ..catalog import CatalogItem
 from ..dataset import BoolArray, CPLot, CPWafer, GenerationResult
 from ..errors import ExportError
 from ..i18n import _
-from .common import engine_version, safe_filename_part, timestamp_token
+from .common import engine_version, ensure_output_path, safe_filename_part, timestamp_token
 
 PHASE: Final = "CP"
 STDF_VERSION: Final = 4
@@ -72,13 +73,6 @@ _PART_FLAG_FAILED: Final = 0x08
 _TSR_OPT_FLAG: Final = 0xCC  # TEST_TIM invalid; reserved bits 3, 6, and 7 set
 _TSR_OPT_FLAG_ALL_INVALID: Final = 0xFF
 
-_HARD_BINS: dict[int, BinDefinition] = {
-    definition.number: definition for definition in HARD_BIN_DEFINITIONS
-}
-_SOFT_BINS: dict[int, BinDefinition] = {
-    definition.number: definition for definition in SOFT_BIN_DEFINITIONS
-}
-
 
 @dataclass(frozen=True, slots=True)
 class _PtrTemplate:
@@ -112,7 +106,9 @@ class _ItemStats:
             self.total_squares += float((column * column).sum())
 
 
-def export_cp_stdf(result: GenerationResult, out_dir: Path) -> tuple[Path, ...]:
+def export_cp_stdf(
+    result: GenerationResult, out_dir: Path, *, overwrite: bool = False
+) -> tuple[Path, ...]:
     """Write one STDF V4 file per CP lot and return the written paths."""
     out_dir.mkdir(parents=True, exist_ok=True)
     timestamp = timestamp_token(result.generated_at)
@@ -121,13 +117,16 @@ def export_cp_stdf(result: GenerationResult, out_dir: Path) -> tuple[Path, ...]:
     for lot in result.lots:
         lot_part = safe_filename_part(lot.lot_id)
         path = out_dir / f"{product}_{lot_part}_{PHASE}_{timestamp}.stdf"
-        write_cp_stdf_lot(path, lot, result)
+        write_cp_stdf_lot(path, lot, result, overwrite=overwrite)
         paths.append(path)
     return tuple(paths)
 
 
-def write_cp_stdf_lot(path: Path, lot: CPLot, result: GenerationResult) -> None:
+def write_cp_stdf_lot(
+    path: Path, lot: CPLot, result: GenerationResult, *, overwrite: bool = False
+) -> None:
     """Write the STDF V4 file for ``lot`` to ``path``."""
+    ensure_output_path(path, overwrite=overwrite)
     try:
         with path.open("wb") as stream:
             _write_lot(stream, lot, result)
@@ -146,6 +145,7 @@ def write_cp_stdf_lot(path: Path, lot: CPLot, result: GenerationResult) -> None:
 
 def _write_lot(stream: BinaryIO, lot: CPLot, result: GenerationResult) -> None:
     items = result.items
+    bin_table = result.bin_table
     templates = tuple(_ptr_template(item) for item in items)
     stats = [_ItemStats() for _ in items]
     hard_counts: Counter[int] = Counter()
@@ -191,8 +191,8 @@ def _write_lot(stream: BinaryIO, lot: CPLot, result: GenerationResult) -> None:
             item_stats.add_wafer(item, wafer, passes[item.id])
 
     _write_record(stream, *PCR, _pcr_body(lot))
-    _write_bin_summaries(stream, hard_counts, _HARD_BINS, HBR, "HBIN_NAM", "hard")
-    _write_bin_summaries(stream, soft_counts, _SOFT_BINS, SBR, "SBIN_NAM", "soft")
+    _write_bin_summaries(stream, hard_counts, bin_table.hard_by_number, HBR, "HBIN_NAM", "hard")
+    _write_bin_summaries(stream, soft_counts, bin_table.soft_by_number, SBR, "SBIN_NAM", "soft")
     for item, item_stats in zip(items, stats, strict=True):
         _write_record(stream, *TSR, _tsr_body(item, item_stats))
     _write_record(stream, *MRR, _mrr_body(last_time))
@@ -333,7 +333,7 @@ def _pcr_body(lot: CPLot) -> bytes:
 def _write_bin_summaries(
     stream: BinaryIO,
     counts: Counter[int],
-    definitions: dict[int, BinDefinition],
+    definitions: Mapping[int, BinDefinition],
     record_type: tuple[int, int],
     field: str,
     kind: str,

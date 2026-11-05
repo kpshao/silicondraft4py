@@ -122,6 +122,14 @@ _Avoid_：bin（单独使用时有歧义）
 记录给每颗 die 的细粒度失效类别，并映射到一个 hard bin。
 _Avoid_：sub-bin
 
+**Bin table（bin 表）**：
+把语义角色（`pass`、`continuity`、`leakage` 等）映射到导出使用的 hard/soft bin 码、名称与描述；scenario 的 `bins` 节按角色覆盖，失效语义与优先级保持固定。
+_Avoid_：bin 配置（配置是载体，表是概念）
+
+**Bin role（bin 角色）**：
+bin 表中代表一类失效语义的键（如 `continuity`），与具体码值解耦；用户可以改码值、名称与描述，但不能改角色含义。
+_Avoid_：bin 类型（与 hard/soft 两种 bin 混淆）
+
 **Die pass（die 合格）**：
 一颗 die 的最终 pass/fail 分类，由 hard bin 决定；区别于单个测试项的 item pass。
 _Avoid_：result、status
@@ -268,6 +276,14 @@ _Avoid_: bin (ambiguous on its own)
 **Soft bin**:
 The detailed failure category recorded for a die and mapped to a hard bin.
 _Avoid_: sub-bin
+
+**Bin table**:
+Maps semantic roles (`pass`, `continuity`, `leakage`, and so on) to the hard/soft bin codes, names, and descriptions used in exports; the scenario's `bins` section overrides roles while the failure semantics and precedence stay fixed.
+_Avoid_: bin config (the config is the carrier, the table is the concept)
+
+**Bin role**:
+A key in the bin table representing one failure semantics (such as `continuity`), decoupled from its concrete code; users may change the code, name, and description but not the role's meaning.
+_Avoid_: bin type (confused with the hard/soft bin kinds)
 
 **Die pass**:
 The final pass/fail classification of a die, determined by its hard bin; distinct from the item pass of an individual test item.

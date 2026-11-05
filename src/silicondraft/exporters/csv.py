@@ -4,7 +4,7 @@ import csv
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 
-from ..binning import HARD_BIN_DEFINITIONS, SOFT_BIN_DEFINITIONS, item_passed
+from ..binning import BinTable, item_passed
 from ..dataset import CPLot, CPWafer, GenerationResult, WatLot
 from ..scenario.models import CsvLayout
 from .common import (
@@ -12,6 +12,9 @@ from .common import (
 )
 from .common import (
     engine_version as _exec_version,
+)
+from .common import (
+    ensure_output_path as _ensure_output_path,
 )
 from .common import (
     format_float as _format_float,
@@ -81,13 +84,6 @@ _CP_LONG_HEADER = (
     "timestamp",
 )
 
-_HARD_BIN_NAME_BY_NUMBER = {
-    definition.number: definition.name for definition in HARD_BIN_DEFINITIONS
-}
-_SOFT_BIN_NAME_BY_NUMBER = {
-    definition.number: definition.name for definition in SOFT_BIN_DEFINITIONS
-}
-
 _WAT_HEADER = (
     "lot_id",
     "wafer_id",
@@ -106,19 +102,25 @@ _WAT_HEADER = (
 
 
 def export_cp_csv(
-    result: GenerationResult, out_dir: Path, *, layout: CsvLayout | None = None
+    result: GenerationResult,
+    out_dir: Path,
+    *,
+    layout: CsvLayout | None = None,
+    overwrite: bool = False,
 ) -> tuple[Path, ...]:
     """Write CP CSV files in ``layout``, defaulting to ``export.cp_csv_layout``."""
     selected = result.scenario.export.cp_csv_layout if layout is None else layout
     paths: list[Path] = []
     if selected in ("blocks", "both"):
-        paths.extend(export_cp_csv_blocks(result, out_dir))
+        paths.extend(export_cp_csv_blocks(result, out_dir, overwrite=overwrite))
     if selected in ("long", "both"):
-        paths.extend(export_cp_csv_long(result, out_dir))
+        paths.extend(export_cp_csv_long(result, out_dir, overwrite=overwrite))
     return tuple(paths)
 
 
-def export_cp_csv_blocks(result: GenerationResult, out_dir: Path) -> tuple[Path, ...]:
+def export_cp_csv_blocks(
+    result: GenerationResult, out_dir: Path, *, overwrite: bool = False
+) -> tuple[Path, ...]:
     """Write one multi-block CP CSV per wafer and return the written paths.
 
     The file name is ``{product}_{lot}_{wafer}_CP_{timestamp}.csv``; the
@@ -136,12 +138,15 @@ def export_cp_csv_blocks(result: GenerationResult, out_dir: Path) -> tuple[Path,
         for wafer in lot.wafers:
             wafer_part = _safe_filename_part(wafer.wafer_id)
             path = out_dir / f"{product}_{lot_part}_{wafer_part}_CP_{timestamp}.csv"
+            _ensure_output_path(path, overwrite=overwrite)
             _write_wafer(path, lot, wafer, result, scenario_hash, encoding)
             paths.append(path)
     return tuple(paths)
 
 
-def export_cp_csv_long(result: GenerationResult, out_dir: Path) -> tuple[Path, ...]:
+def export_cp_csv_long(
+    result: GenerationResult, out_dir: Path, *, overwrite: bool = False
+) -> tuple[Path, ...]:
     """Write one pure long CP CSV per lot and return the written paths.
 
     The file name is ``{product}_{lot}_CP_{timestamp}.csv``; each row is one
@@ -155,12 +160,15 @@ def export_cp_csv_long(result: GenerationResult, out_dir: Path) -> tuple[Path, .
     for lot in result.lots:
         lot_part = _safe_filename_part(lot.lot_id)
         path = out_dir / f"{product}_{lot_part}_CP_{timestamp}.csv"
+        _ensure_output_path(path, overwrite=overwrite)
         _write_cp_long_lot(path, lot, result, encoding)
         paths.append(path)
     return tuple(paths)
 
 
-def export_wat_csv(result: GenerationResult, out_dir: Path) -> tuple[Path, ...]:
+def export_wat_csv(
+    result: GenerationResult, out_dir: Path, *, overwrite: bool = False
+) -> tuple[Path, ...]:
     """Write one long WAT CSV per lot and return the written paths.
 
     The file name is ``{product}_{lot}_WAT_{timestamp}.csv``; each row is one
@@ -174,6 +182,7 @@ def export_wat_csv(result: GenerationResult, out_dir: Path) -> tuple[Path, ...]:
     for lot in result.wat_lots:
         lot_part = _safe_filename_part(lot.lot_id)
         path = out_dir / f"{product}_{lot_part}_WAT_{timestamp}.csv"
+        _ensure_output_path(path, overwrite=overwrite)
         _write_wat_lot(path, lot, result, encoding)
         paths.append(path)
     return tuple(paths)
@@ -219,6 +228,7 @@ def _write_cp_long_lot(
     result: GenerationResult,
     encoding: str,
 ) -> None:
+    table = result.bin_table
     with path.open("w", encoding=encoding, newline="") as stream:
         writer = csv.writer(stream, lineterminator="\n")
         writer.writerow(_CP_LONG_HEADER)
@@ -238,9 +248,9 @@ def _write_cp_long_lot(
                     int(wafer.grid_y[index]),
                     int(wafer.test_site[index]),
                     hard_bin,
-                    _HARD_BIN_NAME_BY_NUMBER[hard_bin],
+                    table.hard_by_number[hard_bin].name,
                     soft_bin,
-                    _SOFT_BIN_NAME_BY_NUMBER[soft_bin],
+                    table.soft_by_number[soft_bin].name,
                     int(wafer.passed[index]),
                 )
                 for item in items:
@@ -271,7 +281,7 @@ def _write_wafer(
         writer = csv.writer(stream, lineterminator="\n")
         _write_metadata(writer, lot, wafer, result, scenario_hash)
         _write_test_items(writer, result)
-        _write_bin_definitions(writer)
+        _write_bin_definitions(writer, result.bin_table)
         _write_test_data(writer, wafer, result)
 
 
@@ -345,7 +355,7 @@ def _write_test_items(writer: CsvWriter, result: GenerationResult) -> None:
     _write_block(writer, "[TEST_ITEMS]", _TEST_ITEM_HEADER, rows)
 
 
-def _write_bin_definitions(writer: CsvWriter) -> None:
+def _write_bin_definitions(writer: CsvWriter, table: BinTable) -> None:
     rows = [
         (
             bin_type,
@@ -355,10 +365,7 @@ def _write_bin_definitions(writer: CsvWriter) -> None:
             definition.hard_bin,
             definition.description,
         )
-        for bin_type, definitions in (
-            ("HARD", HARD_BIN_DEFINITIONS),
-            ("SOFT", SOFT_BIN_DEFINITIONS),
-        )
+        for bin_type, definitions in (("HARD", table.hard), ("SOFT", table.soft))
         for definition in definitions
     ]
     _write_block(writer, "[BIN_DEFINITIONS]", _BIN_DEFINITION_HEADER, rows)

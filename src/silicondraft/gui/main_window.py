@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QSettings, Qt, Signal
 from PySide6.QtGui import QAction, QActionGroup, QCloseEvent, QKeySequence
 from PySide6.QtWidgets import (
     QComboBox,
@@ -40,6 +40,17 @@ from .export_dialog import ExportDialog
 from .i18n import SUPPORTED_LANGUAGES, language_label, language_manager
 from .result_table import ResultsPanel
 from .scenario_tree import ScenarioTree
+from .settings import (
+    EXPORT_DIRECTORY_KEY,
+    OPEN_DIRECTORY_KEY,
+    SAVE_DIRECTORY_KEY,
+    SPLITTER_STATE_KEY,
+    WINDOW_GEOMETRY_KEY,
+    WINDOW_STATE_KEY,
+    read_byte_array,
+    read_path,
+    write_path,
+)
 from .trend import TrendPanel
 from .wafer_map import WaferMapPanel
 from .worker import GenerateFn, GenerationWorker
@@ -61,12 +72,17 @@ class MainWindow(QMainWindow):
         self,
         *,
         generate_fn: GenerateFn = generate,
+        settings: QSettings | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self._language_manager = language_manager()
         self._language_manager.language_changed.connect(self.retranslate_ui)
         self._generate_fn = generate_fn
+        self._settings = settings
+        self._open_directory: Path | None = None
+        self._save_directory: Path | None = None
+        self._export_directory: Path | None = None
         self._scenario: Scenario | None = None
         self._scenario_path: Path | None = None
         self._worker: GenerationWorker | None = None
@@ -78,6 +94,7 @@ class MainWindow(QMainWindow):
         self._error_factory: Callable[[], str] | None = None
 
         self._build_ui()
+        self._restore_settings()
         self._sync_language_actions()
         self._update_actions()
         self._update_title()
@@ -124,6 +141,21 @@ class MainWindow(QMainWindow):
         """The UI language code currently installed."""
         return self._language_manager.language
 
+    @property
+    def open_directory(self) -> Path | None:
+        """The directory remembered for the Open dialog."""
+        return self._open_directory
+
+    @property
+    def save_directory(self) -> Path | None:
+        """The directory remembered for the Save As dialog."""
+        return self._save_directory
+
+    @property
+    def export_directory(self) -> Path | None:
+        """The directory remembered for the Export dialog."""
+        return self._export_directory
+
     def set_language(self, language: str) -> bool:
         """Switch the UI language live and return whether the catalog loaded."""
         return self._language_manager.set_language(language)
@@ -144,6 +176,7 @@ class MainWindow(QMainWindow):
             )
             return False
         self.set_scenario(scenario, file_path)
+        self._remember_directory(OPEN_DIRECTORY_KEY, file_path.parent)
         self._set_status(lambda: self.tr("Loaded scenario: {path}").format(path=file_path))
         return True
 
@@ -169,6 +202,7 @@ class MainWindow(QMainWindow):
             self._show_error(save_error)
             return False
         self._scenario_path = file_path
+        self._remember_directory(SAVE_DIRECTORY_KEY, file_path.parent)
         self._clear_issues()
         self._update_title()
         self._set_status(lambda: self.tr("Saved scenario: {path}").format(path=file_path))
@@ -256,12 +290,17 @@ class MainWindow(QMainWindow):
         cp_csv_layout: CsvLayout | None = None,
         include_ground_truth: bool | None = None,
         include_die_truth: bool | None = None,
+        overwrite: bool = True,
     ) -> bool:
         """Export the current result and report the outcome.
 
         ``formats`` defaults to every format the scenario enables. The keyword
         overrides apply to this export run only; the GUI passes the choices
         from :class:`ExportDialog` without rewriting the scenario.
+
+        The GUI replaces existing artifacts by default (``overwrite=True``),
+        matching its behaviour before the flag existed; the CLI and the public
+        API default to refusing them.
         """
         result = self._last_result
         if result is None or self._worker is not None:
@@ -284,6 +323,7 @@ class MainWindow(QMainWindow):
                 cp_csv_layout=cp_csv_layout,
                 include_ground_truth=include_ground_truth,
                 include_die_truth=include_die_truth,
+                overwrite=overwrite,
             )
         except Exception as exc:
             self._last_export_paths = ()
@@ -295,6 +335,7 @@ class MainWindow(QMainWindow):
             self._show_error(export_error)
             return False
         self._last_export_paths = paths
+        self._remember_directory(EXPORT_DIRECTORY_KEY, Path(out_dir))
         self._clear_issues()
         self._set_status(
             lambda: self.tr("Exported {count} file(s) to {path}").format(
@@ -335,12 +376,12 @@ class MainWindow(QMainWindow):
         ):
             self.preview_tabs.addTab(panel, "")
 
-        splitter = QSplitter(Qt.Orientation.Horizontal, self)
-        splitter.addWidget(self.tree)
-        splitter.addWidget(self.preview_tabs)
-        splitter.setStretchFactor(0, 3)
-        splitter.setStretchFactor(1, 2)
-        self.setCentralWidget(splitter)
+        self.splitter = QSplitter(Qt.Orientation.Horizontal, self)
+        self.splitter.addWidget(self.tree)
+        self.splitter.addWidget(self.preview_tabs)
+        self.splitter.setStretchFactor(0, 3)
+        self.splitter.setStretchFactor(1, 2)
+        self.setCentralWidget(self.splitter)
 
         self.open_action = QAction(self)
         self.open_action.setShortcut(QKeySequence.StandardKey.Open)
@@ -370,6 +411,7 @@ class MainWindow(QMainWindow):
         self.exit_action.triggered.connect(self.close)
 
         self.toolbar = QToolBar(self)
+        self.toolbar.setObjectName("mainToolBar")
         self.toolbar.setMovable(False)
         self.toolbar.addAction(self.open_action)
         self.toolbar.addAction(self.save_action)
@@ -557,14 +599,54 @@ class MainWindow(QMainWindow):
         self.progress_bar.setVisible(False)
         self._update_actions()
 
+    # -- persistent settings ------------------------------------------------
+
+    def _restore_settings(self) -> None:
+        settings = self._settings
+        if settings is None:
+            return
+        geometry = read_byte_array(settings, WINDOW_GEOMETRY_KEY)
+        if geometry is not None:
+            self.restoreGeometry(geometry)
+        state = read_byte_array(settings, WINDOW_STATE_KEY)
+        if state is not None:
+            self.restoreState(state)
+        splitter_state = read_byte_array(settings, SPLITTER_STATE_KEY)
+        if splitter_state is not None:
+            self.splitter.restoreState(splitter_state)
+        self._open_directory = read_path(settings, OPEN_DIRECTORY_KEY)
+        self._save_directory = read_path(settings, SAVE_DIRECTORY_KEY)
+        self._export_directory = read_path(settings, EXPORT_DIRECTORY_KEY)
+
+    def _save_settings(self) -> None:
+        settings = self._settings
+        if settings is None:
+            return
+        settings.setValue(WINDOW_GEOMETRY_KEY, self.saveGeometry())
+        settings.setValue(WINDOW_STATE_KEY, self.saveState())
+        settings.setValue(SPLITTER_STATE_KEY, self.splitter.saveState())
+        settings.sync()
+
+    def _remember_directory(self, key: str, path: Path) -> None:
+        if key == OPEN_DIRECTORY_KEY:
+            self._open_directory = path
+        elif key == SAVE_DIRECTORY_KEY:
+            self._save_directory = path
+        elif key == EXPORT_DIRECTORY_KEY:
+            self._export_directory = path
+        if self._settings is not None:
+            write_path(self._settings, key, path)
+
     # -- dialogs and state --------------------------------------------------
 
     def _open_scenario(self) -> None:
-        start_dir = str(self._scenario_path.parent) if self._scenario_path else ""
+        start_dir = self._open_directory
+        if start_dir is None and self._scenario_path is not None:
+            start_dir = self._scenario_path.parent
         path, _ = QFileDialog.getOpenFileName(
             self,
             self.tr("Open Scenario"),
-            start_dir,
+            str(start_dir) if start_dir is not None else "",
             self.tr("Scenario YAML (*.yaml *.yml);;All files (*)"),
         )
         if path:
@@ -577,7 +659,13 @@ class MainWindow(QMainWindow):
             self._save_scenario_as()
 
     def _save_scenario_as(self) -> None:
-        suggested = str(self._scenario_path) if self._scenario_path else "scenario.yaml"
+        file_name = self._scenario_path.name if self._scenario_path is not None else "scenario.yaml"
+        if self._save_directory is not None:
+            suggested = str(self._save_directory / file_name)
+        elif self._scenario_path is not None:
+            suggested = str(self._scenario_path)
+        else:
+            suggested = file_name
         path, _ = QFileDialog.getSaveFileName(
             self,
             self.tr("Save Scenario"),
@@ -621,6 +709,8 @@ class MainWindow(QMainWindow):
             )
 
     def _default_export_dir(self) -> Path:
+        if self._export_directory is not None:
+            return self._export_directory
         if self._scenario_path is not None:
             return self._scenario_path.parent
         return Path.cwd()
@@ -703,6 +793,7 @@ class MainWindow(QMainWindow):
         )
 
     def closeEvent(self, event: QCloseEvent) -> None:
+        self._save_settings()
         if self._worker is not None:
             self._worker.cancel()
             self._worker.wait()

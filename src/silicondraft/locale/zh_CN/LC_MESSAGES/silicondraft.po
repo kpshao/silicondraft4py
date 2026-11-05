@@ -20,8 +20,41 @@ msgstr "生成数据并写出 STDF、CSV 与真值"
 msgid "path to the scenario YAML file"
 msgstr "场景 YAML 文件路径"
 
-msgid "directory for exported files"
-msgstr "导出文件目录"
+msgid "directory for exported files (required unless --dry-run is used)"
+msgstr "导出文件目录（未使用 --dry-run 时必填）"
+
+msgid "log verbosity: DEBUG, INFO, WARNING, ERROR, or CRITICAL"
+msgstr "日志详细程度：DEBUG、INFO、WARNING、ERROR 或 CRITICAL"
+
+msgid "validate the scenario and print its summary without generating or writing files"
+msgstr "校验场景并打印摘要，不生成或写入文件"
+
+msgid "replace output files that already exist"
+msgstr "覆盖已存在的输出文件"
+
+msgid "--output is required unless --dry-run is used"
+msgstr "未使用 --dry-run 时必须提供 --output"
+
+msgid "dry-run: seed={seed}"
+msgstr "dry-run：随机种子={seed}"
+
+msgid "dry-run: formats={formats}"
+msgstr "dry-run：导出格式={formats}"
+
+msgid "dry-run: per-die truth={state}"
+msgstr "dry-run：逐 die 真值={state}"
+
+msgid "dry-run: overwrite={state}"
+msgstr "dry-run：覆盖={state}"
+
+msgid "on"
+msgstr "开"
+
+msgid "off"
+msgstr "关"
+
+msgid "dry-run: no files written"
+msgstr "dry-run：未写入任何文件"
 
 msgid "skip the per-die ground truth CSV.GZ (the JSON manifest is still written)"
 msgstr "跳过逐 die 真值 CSV.GZ（仍写出 JSON 清单）"
@@ -105,6 +138,9 @@ msgid "scenario: INVALID ({path})"
 msgstr "场景：无效 ({path})"
 
 # Semantic validation
+msgid "{kind} bin code {number} is used by more than one role"
+msgstr "{kind} bin 码 {number} 被多个角色使用"
+
 msgid "unknown preset '{name}'; available: {available}"
 msgstr "未知预设 '{name}'；可用：{available}"
 
@@ -196,6 +232,9 @@ msgstr "测试项 ID '{item}' 与阶段 '{phase}' 不匹配；期望前缀 '{pha
 msgid "cannot change phase of item '{item}' from {old} to {new}"
 msgstr "无法将测试项 '{item}' 的阶段从 {old} 改为 {new}"
 
+msgid "soft_bin_role applies only to CP items"
+msgstr "soft_bin_role 仅适用于 CP 测试项"
+
 msgid "unit '{unit}' is not ASCII; use '{hint}' (µ→u, Ω→ohm, Å→angstrom, ²→2)"
 msgstr "单位 '{unit}' 不是 ASCII；请改用 '{hint}'（µ→u, Ω→ohm, Å→angstrom, ²→2）"
 
@@ -209,6 +248,9 @@ msgid "test_num {test_num} is already used by '{other}'"
 msgstr "test_num {test_num} 已被 '{other}' 使用"
 
 # Export API
+msgid "output file already exists: {path}; use the overwrite option (--overwrite) to replace it"
+msgstr "输出文件已存在：{path}；请使用覆盖选项（--overwrite）替换"
+
 msgid "cannot export to {path}: {error}"
 msgstr "无法导出到 {path}：{error}"
 

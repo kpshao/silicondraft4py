@@ -13,6 +13,7 @@ _SECTIONS = {
     "wafer",
     "lots",
     "items",
+    "bins",
     "patterns",
     "defects",
     "linkage",
@@ -62,6 +63,26 @@ def test_schema_exposes_an_optional_product_test_program() -> None:
     assert "test_program" in product["properties"]
     assert product["properties"]["test_program"]["type"] == "string"
     assert "test_program" not in product.get("required", [])
+
+
+def test_schema_exposes_bin_role_overrides() -> None:
+    schema = scenario_schema()
+
+    hard = schema["$defs"]["Bins"]["properties"]["hard"]
+    soft = schema["$defs"]["Bins"]["properties"]["soft"]
+    assert hard["propertyNames"]["enum"] == ["pass", "parametric", "functional", "continuity"]
+    assert soft["propertyNames"]["enum"] == [
+        "pass",
+        "continuity",
+        "leakage",
+        "iddq",
+        "vth",
+        "frequency",
+        "functional",
+        "other_parametric",
+    ]
+    item_role = schema["$defs"]["ItemOverride"]["properties"]["soft_bin_role"]
+    assert item_role["anyOf"][0]["enum"] == soft["propertyNames"]["enum"]
 
 
 def test_schema_exposes_the_cp_csv_layout() -> None:

@@ -1,5 +1,6 @@
 import csv
 import json
+import logging
 import re
 from pathlib import Path
 
@@ -140,6 +141,175 @@ def _write_tiny_scenario(
     path = tmp_path / "tiny.yaml"
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return path
+
+
+def test_generate_dry_run_validates_without_writing_output(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    scenario_path = _write_tiny_scenario(tmp_path)
+    output_dir = tmp_path / "out"
+
+    exit_code = main(["generate", "-c", str(scenario_path), "--dry-run"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert captured.err == ""
+    assert "scenario: OK" in captured.out
+    assert "dry-run: seed=20260105" in captured.out
+    assert "dry-run: formats=stdf, csv" in captured.out
+    assert "dry-run: per-die truth=on" in captured.out
+    assert "dry-run: overwrite=off" in captured.out
+    assert "dry-run: no files written" in captured.out
+    assert not output_dir.exists()
+
+
+def test_generate_dry_run_reports_the_effective_run_options(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    scenario_path = _write_tiny_scenario(tmp_path)
+
+    exit_code = main(
+        [
+            "generate",
+            "-c",
+            str(scenario_path),
+            "-o",
+            str(tmp_path / "out"),
+            "--dry-run",
+            "--seed",
+            "42",
+            "--formats",
+            "stdf",
+            "--no-die-truth",
+            "--overwrite",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "dry-run: seed=42" in captured.out
+    assert "dry-run: formats=stdf" in captured.out
+    assert "dry-run: per-die truth=off" in captured.out
+    assert "dry-run: overwrite=on" in captured.out
+    assert not (tmp_path / "out").exists()
+
+
+def test_generate_dry_run_does_not_create_a_requested_output_directory(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    scenario_path = _write_tiny_scenario(tmp_path)
+    output_dir = tmp_path / "out"
+
+    exit_code = main(["generate", "-c", str(scenario_path), "-o", str(output_dir), "--dry-run"])
+
+    assert exit_code == 0
+    assert "dry-run" in capsys.readouterr().out
+    assert not output_dir.exists()
+
+
+def test_generate_dry_run_rejects_an_invalid_scenario(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    scenario_path = tmp_path / "invalid.yaml"
+    scenario_path.write_text(
+        "schema_version: 1\n"
+        "product:\n"
+        "  name: GEN55LOGIC\n"
+        "wafer:\n"
+        "  edge_exclusion_mm: 200\n"
+        "seed: 20260105\n",
+        encoding="utf-8",
+    )
+
+    exit_code = main(["generate", "-c", str(scenario_path), "--dry-run"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "EDGE_EXCLUSION_TOO_LARGE" in captured.err
+
+
+def test_generate_requires_output_without_dry_run(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    scenario_path = _write_tiny_scenario(tmp_path)
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(["generate", "-c", str(scenario_path)])
+
+    captured = capsys.readouterr()
+    assert exc_info.value.code == 1
+    assert "--output" in captured.err
+    assert "--dry-run" in captured.err
+
+
+def test_generate_log_level_emits_english_logs(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    scenario_path = _write_tiny_scenario(tmp_path)
+
+    with caplog.at_level(logging.INFO, logger="silicondraft.cli"):
+        exit_code = main(
+            [
+                "generate",
+                "-c",
+                str(scenario_path),
+                "-o",
+                str(tmp_path / "out"),
+                "--log-level",
+                "INFO",
+                "--lang",
+                "zh",
+            ]
+        )
+
+    assert exit_code == 0
+    assert capsys.readouterr().err == ""
+    messages = [record.getMessage() for record in caplog.records]
+    assert any("generated" in message and "lot" in message for message in messages)
+    assert all(
+        "生成" not in message  # Chinese "generated" must not leak into logs
+        for message in messages
+    )
+
+
+def test_generate_default_log_level_does_not_emit_info_logs(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    scenario_path = _write_tiny_scenario(tmp_path)
+
+    with caplog.at_level(logging.INFO, logger="silicondraft.cli"):
+        exit_code = main(["generate", "-c", str(scenario_path), "-o", str(tmp_path / "out")])
+
+    assert exit_code == 0
+    assert capsys.readouterr().err == ""
+    assert not [record for record in caplog.records if record.levelno == logging.INFO]
+
+
+def test_generate_rejects_an_unknown_log_level(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    scenario_path = _write_tiny_scenario(tmp_path)
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(
+            [
+                "generate",
+                "-c",
+                str(scenario_path),
+                "-o",
+                str(tmp_path / "out"),
+                "--log-level",
+                "LOUD",
+            ]
+        )
+
+    captured = capsys.readouterr()
+    assert exc_info.value.code == 1
+    assert "invalid choice" in captured.err
 
 
 def test_generate_writes_multiblock_cp_csv_and_exits_zero(
@@ -394,6 +564,37 @@ def test_generate_maps_stdf_export_failures_to_exit_three(
     captured = capsys.readouterr()
     assert exit_code == 3
     assert "export failed: STDF disk is full" in captured.err
+
+
+def test_generate_overwrite_flag_replaces_existing_artifacts(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from datetime import UTC, datetime
+
+    scenario_path = _write_tiny_scenario(tmp_path)
+    output_dir = tmp_path / "out"
+    fixed = datetime(2026, 1, 5, 8, 0, tzinfo=UTC)
+
+    class _FixedDatetime(datetime):
+        @classmethod
+        def now(cls, tz: object = None) -> datetime:  # type: ignore[override]
+            return fixed if tz is None else fixed.astimezone(tz)  # type: ignore[arg-type]
+
+    monkeypatch.setattr("silicondraft.api.datetime", _FixedDatetime)
+    base = ["generate", "-c", str(scenario_path), "-o", str(output_dir)]
+
+    assert main(base) == 0
+    capsys.readouterr()
+
+    assert main(base) == 3
+    captured = capsys.readouterr()
+    assert "already exists" in captured.err
+    assert "--overwrite" in captured.err
+
+    assert main([*base, "--overwrite"]) == 0
+    capsys.readouterr()
 
 
 def test_generate_formats_selects_the_requested_artifacts(

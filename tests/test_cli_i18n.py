@@ -69,6 +69,20 @@ def test_lang_zh_translates_engine_issues(
     assert "ITEM_REFERENCE_UNKNOWN" in captured.err
 
 
+def test_lang_zh_translates_the_dry_run_summary(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = _write_valid_scenario(tmp_path)
+
+    exit_code = main(["--lang", "zh", "generate", "-c", str(path), "--dry-run"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "场景：通过" in captured.out  # noqa: RUF001
+    assert "dry-run：随机种子=20260105" in captured.out  # noqa: RUF001
+    assert "dry-run：未写入任何文件" in captured.out  # noqa: RUF001
+
+
 def test_lang_zh_keeps_export_identifiers_english(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
