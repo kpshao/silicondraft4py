@@ -30,6 +30,9 @@ PatternKind = Literal[
 PatternScope = Literal["lot", "wafer"]
 PatternCombine = Literal["add", "multiply"]
 ExportEncoding = Literal["utf-8", "utf-8-sig"]
+ExportFormat = Literal["stdf", "csv"]
+#: Export formats accepted by the API and the exporters.
+EXPORT_FORMATS: tuple[ExportFormat, ...] = ("stdf", "csv")
 CsvLayout = Literal["blocks", "long", "both"]
 #: CP CSV layouts accepted by the scenario schema and the exporters.
 CSV_LAYOUTS: tuple[CsvLayout, ...] = ("long", "blocks", "both")
@@ -189,6 +192,14 @@ class ExportOptions(_StrictModel):
     ground_truth: bool = True
     include_die_truth: bool = True
     encoding: ExportEncoding = "utf-8"
+
+    def enabled_formats(self) -> tuple[ExportFormat, ...]:
+        """The data formats these options enable, in canonical order."""
+        enabled = {
+            "stdf": self.cp_stdf,
+            "csv": self.cp_csv or self.wat_csv,
+        }
+        return tuple(format_name for format_name in EXPORT_FORMATS if enabled[format_name])
 
 
 class Metadata(_StrictModel):

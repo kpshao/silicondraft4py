@@ -17,6 +17,7 @@ from . import (
 )
 from .errors import ExportError, ScenarioError
 from .i18n import DEFAULT_LANGUAGE, _, install, reset
+from .scenario.models import EXPORT_FORMATS
 
 LANGUAGE_CHOICES = ("en", "zh")
 
@@ -43,6 +44,24 @@ def _add_language_argument(parser: argparse.ArgumentParser, *, default: str | No
     )
 
 
+def _export_formats(value: str) -> tuple[str, ...]:
+    """Parse a comma-separated ``--formats`` value."""
+    requested = tuple(part.strip().lower() for part in value.split(",") if part.strip())
+    supported = ", ".join(EXPORT_FORMATS)
+    if not requested:
+        raise argparse.ArgumentTypeError(
+            _("no export format requested; supported: {formats}").format(formats=supported)
+        )
+    unsupported = sorted(set(requested) - set(EXPORT_FORMATS))
+    if unsupported:
+        raise argparse.ArgumentTypeError(
+            _("unsupported export format(s): {formats}; supported: {supported}").format(
+                formats=", ".join(unsupported), supported=supported
+            )
+        )
+    return requested
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the command line parser in the currently installed language."""
     parser = _ArgumentParser(
@@ -58,7 +77,7 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", metavar="COMMAND")
 
     generate_parser = subparsers.add_parser(
-        "generate", help=_("generate data and write CSV and ground truth")
+        "generate", help=_("generate data and write STDF, CSV, and ground truth")
     )
     _add_language_argument(generate_parser, default=None)
     generate_parser.add_argument(
@@ -76,6 +95,13 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         metavar="DIR",
         help=_("directory for exported files"),
+    )
+    generate_parser.add_argument(
+        "--formats",
+        type=_export_formats,
+        default=None,
+        metavar="FORMATS",
+        help=_("comma-separated export formats: stdf, csv"),
     )
     generate_parser.add_argument(
         "--no-die-truth",
@@ -115,6 +141,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     args.config,
                     args.output,
                     include_die_truth=False if args.no_die_truth else None,
+                    formats=args.formats,
                 )
             case "validate":
                 return _validate(args.config)
@@ -144,6 +171,7 @@ def _generate(
     output_dir: Path,
     *,
     include_die_truth: bool | None = None,
+    formats: Sequence[str] | None = None,
 ) -> int:
     try:
         scenario = load_scenario(scenario_path)
@@ -153,7 +181,7 @@ def _generate(
 
     try:
         summary, paths = generate_to_directory(
-            scenario, output_dir, include_die_truth=include_die_truth
+            scenario, output_dir, include_die_truth=include_die_truth, formats=formats
         )
     except ScenarioError as exc:
         _print_invalid(scenario_path, exc.issues)

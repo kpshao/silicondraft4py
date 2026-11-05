@@ -4,7 +4,7 @@
 
 SiliconDraft 是一个 scenario（场景）驱动的合成 CP/WAT 测试数据生成器，用于验证良率管理系统（YMS）的数据导入、良率/bin 分析、wafer map、SPC 与相关性分析。V1 覆盖 CP 与 WAT；FT 计划于 V2 支持。
 
-当前处于 V1 开发早期：项目骨架、scenario v1 schema、结构/语义校验与 `validate` / `schema` / `version` CLI 已完成；CP 生成与 CP CSV 导出（`generate`）已接入，包含 21 个 CP 测试项、hard/soft bin、由 spec limits 推导的 pass/fail、lot/wafer/die 良率汇总与 hard/soft bin Pareto；CP CSV 默认每 lot 一个 long CSV，并保留 [ADR-0005](docs/adr/0005-cp-csv-multiblock-layout.md) 的每 wafer 四块布局（见 [ADR-0010](docs/adr/0010-cp-long-csv-default-and-multi-block-option.md)）。WAT 生成与 WAT long CSV、六个 latent process factor 的 lot/wafer/die 分解、WAT↔CP 灵敏度联动、目标相关系数校准与生成报告也已接入（见 [ADR-0006](docs/adr/0006-wat-site-pairing-and-correlation-report.md)）。系统性空间模式、带簇聚的随机缺陷与 ground truth（JSON manifest + 每 die CSV.GZ）已接入（见 [ADR-0007](docs/adr/0007-patterns-defects-and-groundtruth.md)）。`quick` / `trend` / `demo` 预设、多 lot 时间线与 CLI 逐 lot 流式生成也已接入（见 [ADR-0008](docs/adr/0008-scenario-presets-and-streaming-generation.md)）。GUI 主干（scenario 配置树、YAML 加载/保存、预设选择、后台生成与取消、进度与错误展示）以及生成后的 wafer map、分布、相关性与趋势预览、分页 die 级数据表与 CSV 导出对话框已接入；GUI 与 CLI 已支持中英文切换（见 [ADR-0003](docs/adr/0003-engine-gui-separation-and-i18n.md)），STDF 留给后续里程碑。
+当前处于 V1 开发早期：项目骨架、scenario v1 schema、结构/语义校验与 `validate` / `schema` / `version` CLI 已完成；CP 生成与 CP CSV 导出（`generate`）已接入，包含 21 个 CP 测试项、hard/soft bin、由 spec limits 推导的 pass/fail、lot/wafer/die 良率汇总与 hard/soft bin Pareto；CP CSV 默认每 lot 一个 long CSV，并保留 [ADR-0005](docs/adr/0005-cp-csv-multiblock-layout.md) 的每 wafer 四块布局（见 [ADR-0010](docs/adr/0010-cp-long-csv-default-and-multi-block-option.md)）。WAT 生成与 WAT long CSV、六个 latent process factor 的 lot/wafer/die 分解、WAT↔CP 灵敏度联动、目标相关系数校准与生成报告也已接入（见 [ADR-0006](docs/adr/0006-wat-site-pairing-and-correlation-report.md)）。系统性空间模式、带簇聚的随机缺陷与 ground truth（JSON manifest + 每 die CSV.GZ）已接入（见 [ADR-0007](docs/adr/0007-patterns-defects-and-groundtruth.md)）。`quick` / `trend` / `demo` 预设、多 lot 时间线与 CLI 逐 lot 流式生成也已接入（见 [ADR-0008](docs/adr/0008-scenario-presets-and-streaming-generation.md)）。GUI 主干（scenario 配置树、YAML 加载/保存、预设选择、后台生成与取消、进度与错误展示）以及生成后的 wafer map、分布、相关性与趋势预览、分页 die 级数据表与 CSV 导出对话框已接入；GUI 与 CLI 已支持中英文切换（见 [ADR-0003](docs/adr/0003-engine-gui-separation-and-i18n.md)）；CP STDF V4 导出（自研 writer，测试期用 `pystdf` 交叉验证）也已接入（见 [ADR-0002](docs/adr/0002-own-stdf-v4-writer.md)）。
 
 ## 安装
 
@@ -20,14 +20,14 @@ uv sync
 
 仓库提供 [examples/tiny.yaml](examples/tiny.yaml)：1 lot × 1 wafer，300 mm 晶圆、5×5 mm die，共 2,700 颗 die。
 
-校验并生成 CP CSV：
+校验并生成 CP STDF 与 CSV：
 
 ```bash
 uv run silicondraft validate -c examples/tiny.yaml
 uv run silicondraft generate -c examples/tiny.yaml -o out/
 ```
 
-查看输出（long CSV：2,700 颗 die × 21 个 CP 项 = 56,700 行数据 + 表头）：
+查看输出（CP STDF V4 每个 lot 一个文件；long CSV：2,700 颗 die × 21 个 CP 项 = 56,700 行数据 + 表头）：
 
 ```bash
 ls -lh out/
@@ -55,11 +55,11 @@ seed: 20260105
 - `trend`：5 lots × 25 wafers，跨日期，lot 间隔 168 小时，用于 lot/wafer 趋势。
 - `demo`：1 lot × 25 wafers，注入 edge-low、center-high、ring 与单 wafer local-spot，并带强联动，用于演示与 YMS 检测验证。
 
-预设提供默认 product 名 `GEN55LOGIC`，可在 YAML 中覆盖；`seed` 始终由 scenario 指定。CLI 的 `generate` 逐 lot 生成并写出该 lot 的 CSV/真值后立即释放测量数组，峰值内存按单 lot 而非 lot 数增长。Python API 的 `generate()` 仍返回完整 `GenerationResult`；需要同样流式行为时使用 `generate_to_directory()`。
+预设提供默认 product 名 `GEN55LOGIC`，可在 YAML 中覆盖；`seed` 始终由 scenario 指定。CLI 的 `generate` 逐 lot 生成并写出该 lot 的 CSV/STDF/真值后立即释放测量数组，峰值内存按单 lot 而非 lot 数增长。Python API 的 `generate()` 仍返回完整 `GenerationResult`；需要同样流式行为时使用 `generate_to_directory()`。
 
 > **Excel 用户**：`unit` 列使用 ASCII SI 记法（`uA`、`ohm`、`angstrom` 等），默认 `export.encoding: utf-8` 双击打开也不会乱码。若产品名、描述等元数据包含中文等非 ASCII 内容，请将 scenario 的 `export.encoding` 设为 `utf-8-sig`（[examples/tiny.yaml](examples/tiny.yaml) 已这样配置），或改用 Excel 的“数据 → 从文本/CSV”并手动选择 UTF-8。
 
-生成 CP 数据并写入 CP CSV：
+生成 CP 数据并写入 CP STDF 与 CSV：
 
 ```bash
 uv run silicondraft generate -c scenario.yaml -o out/
@@ -67,7 +67,11 @@ uv run silicondraft generate -c scenario.yaml -o out/
 
 生成只接受通过校验的 scenario。CP CSV 默认每个 lot 一个 long CSV（`{product}_{lot}_CP_{timestamp}.csv`），一行 = wafer × die × item，表头为 `lot_id,wafer_id,die_x_mm,die_y_mm,grid_x,grid_y,test_site,hard_bin,hard_bin_name,soft_bin,soft_bin_name,die_pass,test_num,item_id,value,unit,lsl,usl,pass,timestamp`。`pass` 是该 item 的 item-level pass（Bernoulli 项值非零才通过），`die_pass` 是整颗 die 的 pass/fail（`hard_bin == 1`）；`hard_bin_name`/`soft_bin_name` 给出 bin 名称。设置 `export.cp_csv_layout: blocks` 可改用 [ADR-0005](docs/adr/0005-cp-csv-multiblock-layout.md) 的每 wafer 四块布局，`both` 同时写出两套。同一 scenario + seed 生成的数据一致（`generated_at` 与文件名时间戳除外）。
 
-导出同时支持 CP CSV、WAT CSV 与 ground truth，分别由 `export.cp_csv` / `export.wat_csv` / `export.ground_truth` 控制；CP CSV 的布局由 `export.cp_csv_layout`（`long` / `blocks` / `both`，默认 `long`）控制；CSV 遵循 `export.encoding`。`patterns`、`defects` 与 `linkage` 均已接入生成流程；STDF 尚未接入。
+导出支持 CP STDF、CP CSV、WAT CSV 与 ground truth，分别由 `export.cp_stdf` / `export.cp_csv` / `export.wat_csv` / `export.ground_truth` 控制；CP CSV 的布局由 `export.cp_csv_layout`（`long` / `blocks` / `both`，默认 `long`）控制；CSV 遵循 `export.encoding`。`patterns`、`defects` 与 `linkage` 均已接入生成流程。
+
+#### CP STDF V4
+
+每个 lot 写出一个 `{product}_{lot}_CP_{timestamp}.stdf`，包含 FAR、MIR、MRR、PCR、HBR、SBR、WIR、WRR、WCR、PIR、PRR、PTR、TSR 全套记录。PTR 每个 CP item 一条，PRR 每颗 die 一条；`HEAD_NUM` 固定为 1，`SITE_NUM` 取该 die 的 test site；PRR 的 `X_COORD`/`Y_COORD` 使用 grid 坐标。WCR 记录晶圆直径、die 尺寸、mm 单位与 grid 中心；HBR/SBR 汇总 hard/soft bin 计数；TSR 汇总每个 item 的执行/失败计数与 min/max/sum/sum-of-squares。文件为小端 STDF V4，缺失值使用标准 missing code（空 `C*n`、`U*1` 的 255、`U*2` 的 65535、`U*4` 的 4294967295；PTR 的单边限值用 `OPT_FLAG` 标记，未执行时间或不可用的统计量同样通过 flag 标记）。同一 scenario + seed 生成的 STDF 数据一致（记录内时间戳除外）；writer 由项目自研，测试期用 `pystdf` 独立解析并交叉核对记录数与关键字段（见 [ADR-0002](docs/adr/0002-own-stdf-v4-writer.md)）。
 
 #### CP CSV 布局
 
@@ -184,6 +188,8 @@ CLI 消息默认英文；加 `--lang zh`（放在子命令前后均可）输出�
 uv run silicondraft --lang zh validate -c scenario.yaml
 ```
 
+`generate` 默认按 scenario 的 `export` 选项写出产物；`--formats stdf,csv` 可按本次运行覆盖格式选择（例如 `--formats stdf` 只写 STDF，即使 scenario 中关闭了 `cp_stdf`）。
+
 输出 JSON Schema：
 
 ```bash
@@ -216,7 +222,7 @@ uv sync --extra gui
 uv run silicondraft-gui
 ```
 
-主窗口左侧显示当前 scenario 的配置树；工具栏可打开/保存 YAML、选择 `quick` / `trend` / `demo` 预设，并在后台 worker 线程生成数据。生成期间进度条与状态栏跟随当前 lot/wafer，Cancel 可停止生成并把窗口恢复到可操作状态；加载、保存或生成时的配置错误以 `path: message [code]` 列在右侧问题列表中。生成完成后右侧预览页签依次为 Wafer Map、Distribution、Correlation、Trend 与 Results：Wafer Map 可按 hard bin、soft bin 或选定 CP item 着色，并可打开 Ground truth 复选框，按当前 wafer 上实际生效的模式绘制注入范围/边界（中心圆、环、边缘环带与径向渐变范围）；Distribution 显示选定 CP item 的直方图与规格限；Correlation 针对选定的 WAT↔CP 联动对，绘制 WAT 站点与最近 die 的散点图，并标注 target r、achieved r 与 observed r；Trend 可在 lot 与 wafer 视图间切换，展示 CP 良率，或选定联动对 WAT/CP 均值的标准化（z-score）趋势；Results 以分页表格显示 die 级记录（lot/wafer、坐标、test site、hard/soft bin、die pass 与各 CP 测试项值）。大数据量预览使用确定性降采样；无 WAT 数据或单 lot 的 lot 级趋势会显示空状态说明。工具栏 Export… 打开导出对话框：除输出目录外，还可为本次导出覆盖 CP CSV 布局（每 lot 一个 long CSV、每 wafer 一个多块 CSV，或两者）、是否写 ground truth 以及是否写每 die 真值；这些选择不修改 scenario。成功在状态栏反馈，失败同时出现在状态栏与问题列表，生成前导出不可用。工具栏 YAML Editor… 打开 YAML 编辑器，加载完全展开的 scenario；Validate 就地校验并把光标移到首个可定位错误（YAML 语法错误定位到行列，语义错误定位到字段路径），Save 仅在校验通过后写回完全展开的 YAML，因此保存结果可直接交给 CLI 使用。保存会写出完全展开后的 scenario，重新加载结果一致。工具栏的 Language 下拉框或 Settings → Language 可在 English 与中文之间实时切换，无需重启；语言选择通过 QSettings 持久保存。STDF 不在本里程碑内。
+主窗口左侧显示当前 scenario 的配置树；工具栏可打开/保存 YAML、选择 `quick` / `trend` / `demo` 预设，并在后台 worker 线程生成数据。生成期间进度条与状态栏跟随当前 lot/wafer，Cancel 可停止生成并把窗口恢复到可操作状态；加载、保存或生成时的配置错误以 `path: message [code]` 列在右侧问题列表中。生成完成后右侧预览页签依次为 Wafer Map、Distribution、Correlation、Trend 与 Results：Wafer Map 可按 hard bin、soft bin 或选定 CP item 着色，并可打开 Ground truth 复选框，按当前 wafer 上实际生效的模式绘制注入范围/边界（中心圆、环、边缘环带与径向渐变范围）；Distribution 显示选定 CP item 的直方图与规格限；Correlation 针对选定的 WAT↔CP 联动对，绘制 WAT 站点与最近 die 的散点图，并标注 target r、achieved r 与 observed r；Trend 可在 lot 与 wafer 视图间切换，展示 CP 良率，或选定联动对 WAT/CP 均值的标准化（z-score）趋势；Results 以分页表格显示 die 级记录（lot/wafer、坐标、test site、hard/soft bin、die pass 与各 CP 测试项值）。大数据量预览使用确定性降采样；无 WAT 数据或单 lot 的 lot 级趋势会显示空状态说明。工具栏 Export… 打开导出对话框：除输出目录外，还可为本次导出选择格式（STDF / CSV）、覆盖 CP CSV 布局（每 lot 一个 long CSV、每 wafer 一个多块 CSV，或两者）、是否写 ground truth 以及是否写每 die 真值；这些选择不修改 scenario。成功在状态栏反馈，失败同时出现在状态栏与问题列表，生成前导出不可用。工具栏 YAML Editor… 打开 YAML 编辑器，加载完全展开的 scenario；Validate 就地校验并把光标移到首个可定位错误（YAML 语法错误定位到行列，语义错误定位到字段路径），Save 仅在校验通过后写回完全展开的 YAML，因此保存结果可直接交给 CLI 使用。保存会写出完全展开后的 scenario，重新加载结果一致。工具栏的 Language 下拉框或 Settings → Language 可在 English 与中文之间实时切换，无需重启；语言选择通过 QSettings 持久保存。
 
 ## Python API
 
@@ -241,12 +247,13 @@ text_result = validate_scenario_text("schema_version: 1\nproduct: {name: GEN55LO
 
 scenario = load_scenario("scenario.yaml")  # 结构 + 语义校验通过后返回类型化场景
 generated = generate(scenario)  # 返回 GenerationResult
-paths = export(generated, out_dir="out")  # 按 export 选项写出 CSV 与 ground truth
+paths = export(generated, out_dir="out")  # 默认只写 CSV 与 ground truth
+paths = export(generated, out_dir="out", formats=("stdf", "csv"))  # 同时写 STDF 与 CSV
 paths = export(generated, out_dir="out", include_die_truth=False)  # 覆盖每 die 真值开关
 paths = export(generated, out_dir="out", cp_csv_layout="blocks")  # 本次导出改用每 wafer 多块 CSV
 paths = export(generated, out_dir="out", include_ground_truth=False)  # 本次导出不写 ground truth
 
-# 或逐 lot 生成并导出，峰值内存按单 lot 增长：
+# 或逐 lot 生成并导出，峰值内存按单 lot 增长；formats=None 时按 scenario 的 export 选项
 summary, paths = generate_to_directory(scenario, out_dir="out")
 
 for entry in generated.linkage_report:
@@ -286,7 +293,7 @@ MIT，见 [LICENSE](LICENSE)。
 
 SiliconDraft is a scenario-driven synthetic CP/WAT test data generator for validating yield management system (YMS) functions such as data import, yield/bin analysis, wafer maps, SPC, and correlation analysis. V1 covers CP and WAT; FT is planned for V2.
 
-The project is in early V1 development: the project skeleton, scenario v1 schema, structural/semantic validation, and the `validate` / `schema` / `version` CLI are in place, along with CP generation and CP CSV export (`generate`). Generation now covers all 21 CP test items, hard/soft bins, pass/fail derived from spec limits, lot/wafer/die yield summaries, and hard/soft-bin Pareto; CP CSV defaults to one long CSV per lot and retains the per-wafer four-block layout from [ADR-0005](docs/adr/0005-cp-csv-multiblock-layout.md) (see [ADR-0010](docs/adr/0010-cp-long-csv-default-and-multi-block-option.md)). WAT generation with a long CSV, the lot/wafer/die decomposition of six latent process factors, WAT↔CP sensitivity linkage, target-correlation calibration, and the generation report are also in place (see [ADR-0006](docs/adr/0006-wat-site-pairing-and-correlation-report.md)). Systematic spatial patterns, clustered random defects, and ground truth (a JSON manifest plus per-die CSV.GZ) are in place too (see [ADR-0007](docs/adr/0007-patterns-defects-and-groundtruth.md)). The `quick` / `trend` / `demo` presets, multi-lot timelines, and the CLI's per-lot streaming generation are also in place (see [ADR-0008](docs/adr/0008-scenario-presets-and-streaming-generation.md)). The GUI backbone — scenario configuration tree, YAML load/save, preset selection, background generation with cancel, progress, and readable issues — is also in place, together with wafer-map, distribution, correlation, and trend previews, a paginated die-level results table, and a CSV export dialog. The GUI and CLI support an English/Chinese switch (see [ADR-0003](docs/adr/0003-engine-gui-separation-and-i18n.md)); STDF arrives in a later milestone.
+The project is in early V1 development: the project skeleton, scenario v1 schema, structural/semantic validation, and the `validate` / `schema` / `version` CLI are in place, along with CP generation and CP CSV export (`generate`). Generation now covers all 21 CP test items, hard/soft bins, pass/fail derived from spec limits, lot/wafer/die yield summaries, and hard/soft-bin Pareto; CP CSV defaults to one long CSV per lot and retains the per-wafer four-block layout from [ADR-0005](docs/adr/0005-cp-csv-multiblock-layout.md) (see [ADR-0010](docs/adr/0010-cp-long-csv-default-and-multi-block-option.md)). WAT generation with a long CSV, the lot/wafer/die decomposition of six latent process factors, WAT↔CP sensitivity linkage, target-correlation calibration, and the generation report are also in place (see [ADR-0006](docs/adr/0006-wat-site-pairing-and-correlation-report.md)). Systematic spatial patterns, clustered random defects, and ground truth (a JSON manifest plus per-die CSV.GZ) are in place too (see [ADR-0007](docs/adr/0007-patterns-defects-and-groundtruth.md)). The `quick` / `trend` / `demo` presets, multi-lot timelines, and the CLI's per-lot streaming generation are also in place (see [ADR-0008](docs/adr/0008-scenario-presets-and-streaming-generation.md)). The GUI backbone — scenario configuration tree, YAML load/save, preset selection, background generation with cancel, progress, and readable issues — is also in place, together with wafer-map, distribution, correlation, and trend previews, a paginated die-level results table, and a CSV export dialog. The GUI and CLI support an English/Chinese switch (see [ADR-0003](docs/adr/0003-engine-gui-separation-and-i18n.md)); CP STDF V4 export (our own writer, cross-checked with `pystdf` in tests) is in place as well (see [ADR-0002](docs/adr/0002-own-stdf-v4-writer.md)).
 
 ## Install
 
@@ -302,14 +309,14 @@ uv sync
 
 The repo ships [examples/tiny.yaml](examples/tiny.yaml): 1 lot × 1 wafer, 300 mm wafer, 5×5 mm dies, 2,700 dies total.
 
-Validate and generate CP CSV:
+Validate and generate CP STDF and CSV:
 
 ```bash
 uv run silicondraft validate -c examples/tiny.yaml
 uv run silicondraft generate -c examples/tiny.yaml -o out/
 ```
 
-Inspect the output (long CSV: 2,700 dies × 21 CP items = 56,700 data rows plus the header):
+Inspect the output (one CP STDF V4 file per lot; long CSV: 2,700 dies × 21 CP items = 56,700 data rows plus the header):
 
 ```bash
 ls -lh out/
@@ -337,11 +344,11 @@ seed: 20260105
 - `trend`: 5 lots × 25 wafers across dates with a 168-hour lot interval, for lot/wafer trends.
 - `demo`: 1 lot × 25 wafers with edge-low, center-high, ring, and a wafer-scoped local spot plus strong linkage, for demos and YMS detection validation.
 
-Presets default the product name to `GEN55LOGIC`, which the YAML may override; `seed` always comes from the scenario. The CLI's `generate` writes each lot's CSV and truth files and then releases that lot's measurement arrays, so peak memory follows one lot rather than the lot count. The Python `generate()` API still returns the complete `GenerationResult`; use `generate_to_directory()` for the same streaming behaviour.
+Presets default the product name to `GEN55LOGIC`, which the YAML may override; `seed` always comes from the scenario. The CLI's `generate` writes each lot's CSV, STDF, and truth files and then releases that lot's measurement arrays, so peak memory follows one lot rather than the lot count. The Python `generate()` API still returns the complete `GenerationResult`; use `generate_to_directory()` for the same streaming behaviour.
 
 > **Excel users**: the `unit` column uses ASCII SI notation (e.g. `uA`, `ohm`, `angstrom`), so the default BOM-less `export.encoding: utf-8` opens correctly when double-clicked. If metadata such as the product name or descriptions contains non-ASCII text, set `export.encoding` to `utf-8-sig` in your scenario ([examples/tiny.yaml](examples/tiny.yaml) already does), or use Excel's Data → From Text/CSV and choose UTF-8 manually.
 
-Generate CP data and write CP CSV:
+Generate CP data and write CP STDF and CSV:
 
 ```bash
 uv run silicondraft generate -c scenario.yaml -o out/
@@ -349,7 +356,11 @@ uv run silicondraft generate -c scenario.yaml -o out/
 
 Generation only accepts a scenario that passes validation. CP CSV defaults to one long CSV per lot (`{product}_{lot}_CP_{timestamp}.csv`), with one row per wafer × die × item and the header `lot_id,wafer_id,die_x_mm,die_y_mm,grid_x,grid_y,test_site,hard_bin,hard_bin_name,soft_bin,soft_bin_name,die_pass,test_num,item_id,value,unit,lsl,usl,pass,timestamp`. `pass` is the item-level pass (Bernoulli items require a non-zero value), `die_pass` is the die-level pass (`hard_bin == 1`), and `hard_bin_name`/`soft_bin_name` give the bin names. Set `export.cp_csv_layout: blocks` for the per-wafer four-block layout from [ADR-0005](docs/adr/0005-cp-csv-multiblock-layout.md), or `both` to write both. The same scenario + seed produces identical data (excluding `generated_at` and the timestamp in the file name).
 
-Export covers CP CSV, WAT CSV, and ground truth, controlled by `export.cp_csv` / `export.wat_csv` / `export.ground_truth`; the CP CSV layout is controlled by `export.cp_csv_layout` (`long` / `blocks` / `both`, default `long`); CSV output honours `export.encoding`. `patterns`, `defects`, and `linkage` are all part of generation; STDF is not wired up yet.
+Export covers CP STDF, CP CSV, WAT CSV, and ground truth, controlled by `export.cp_stdf` / `export.cp_csv` / `export.wat_csv` / `export.ground_truth`; the CP CSV layout is controlled by `export.cp_csv_layout` (`long` / `blocks` / `both`, default `long`); CSV output honours `export.encoding`. `patterns`, `defects`, and `linkage` are all part of generation.
+
+#### CP STDF V4
+
+Each lot produces one `{product}_{lot}_CP_{timestamp}.stdf` containing the full FAR, MIR, MRR, PCR, HBR, SBR, WIR, WRR, WCR, PIR, PRR, PTR, and TSR record set. There is one PTR per CP item per die and one PRR per die; `HEAD_NUM` is always 1, `SITE_NUM` is the die's test site, and PRR `X_COORD`/`Y_COORD` carry grid coordinates. WCR carries the wafer diameter, die size, millimetre units, and grid centre; HBR/SBR summarise hard/soft-bin counts; TSR summarises per-item execution/failure counts and min/max/sum/sum-of-squares. Files are little-endian STDF V4 and use standard missing codes (empty `C*n`, 255 for `U*1`, 65535 for `U*2`, 4294967295 for `U*4`; PTR one-sided limits are marked through `OPT_FLAG`, as are unavailable timings and statistics). The same scenario + seed produces identical STDF data apart from timestamps inside the records. The writer is implemented in-house and cross-checked in tests by independently parsing the output with `pystdf` (record counts and key fields; see [ADR-0002](docs/adr/0002-own-stdf-v4-writer.md)).
 
 #### CP CSV layout
 
@@ -466,6 +477,8 @@ CLI messages are English by default; add `--lang zh` (before or after the subcom
 uv run silicondraft --lang zh validate -c scenario.yaml
 ```
 
+`generate` follows the scenario's `export` options by default; `--formats stdf,csv` overrides the format selection for this run (for example `--formats stdf` writes only STDF even when the scenario disables `cp_stdf`).
+
 Print the JSON Schema:
 
 ```bash
@@ -498,7 +511,7 @@ uv sync --extra gui
 uv run silicondraft-gui
 ```
 
-The main window shows the current scenario's configuration tree on the left. The toolbar opens and saves YAML, selects the `quick` / `trend` / `demo` presets, and generates in a background worker thread. During generation the progress bar and status bar follow the current lot/wafer; Cancel stops the run and restores the window to a usable state. Configuration errors from loading, saving, or generation appear in the right-hand issues list as `path: message [code]`. After generation, the preview tabs show Wafer Map, Distribution, Correlation, Trend, and Results. The Wafer Map colours dies by hard bin, soft bin, or a selected CP item; its Ground truth checkbox draws the extents and boundaries of the patterns active on the current wafer (centre discs, rings, edge bands, and radial-gradient extents); Distribution shows a selected CP item's histogram and spec limits; Correlation scatters WAT sites against their nearest dies for a selected WAT↔CP linkage pair and annotates the target r, achieved r, and observed r; Trend switches between lot and wafer views and shows CP yield or standardised (z-score) trends of the selected pair's mean WAT/CP values; Results lists die-level records (lot/wafer, coordinates, test site, hard/soft bin, die pass, and each CP test item value) in a paginated table. Large previews use deterministic downsampling, and empty states explain missing WAT data or a lot-level trend with a single lot. Export… opens a dialog that picks an output directory and can override, for this run only, the CP CSV layout (one long CSV per lot, one multi-block CSV per wafer, or both), whether ground truth is written, and whether per-die truth is written; these choices do not rewrite the scenario. Success is reported in the status bar, failure in both the status bar and the issues list, and export stays disabled until a generation completes. YAML Editor… opens an editor loaded with the fully expanded scenario; Validate checks the text in place and moves the cursor to the first locatable issue (a line and column for YAML syntax errors, a field path for semantic errors), and Save writes the fully expanded YAML only after validation passes, so the saved file can be handed directly to the CLI. Saving from the main window writes the fully expanded scenario, so reloading yields the same scenario. The toolbar's Language selector or Settings → Language switches between English and Chinese live, without a restart, and the choice persists through QSettings. STDF is outside this milestone.
+The main window shows the current scenario's configuration tree on the left. The toolbar opens and saves YAML, selects the `quick` / `trend` / `demo` presets, and generates in a background worker thread. During generation the progress bar and status bar follow the current lot/wafer; Cancel stops the run and restores the window to a usable state. Configuration errors from loading, saving, or generation appear in the right-hand issues list as `path: message [code]`. After generation, the preview tabs show Wafer Map, Distribution, Correlation, Trend, and Results. The Wafer Map colours dies by hard bin, soft bin, or a selected CP item; its Ground truth checkbox draws the extents and boundaries of the patterns active on the current wafer (centre discs, rings, edge bands, and radial-gradient extents); Distribution shows a selected CP item's histogram and spec limits; Correlation scatters WAT sites against their nearest dies for a selected WAT↔CP linkage pair and annotates the target r, achieved r, and observed r; Trend switches between lot and wafer views and shows CP yield or standardised (z-score) trends of the selected pair's mean WAT/CP values; Results lists die-level records (lot/wafer, coordinates, test site, hard/soft bin, die pass, and each CP test item value) in a paginated table. Large previews use deterministic downsampling, and empty states explain missing WAT data or a lot-level trend with a single lot. Export… opens a dialog that picks an output directory and can override, for this run only, the export formats (STDF / CSV), the CP CSV layout (one long CSV per lot, one multi-block CSV per wafer, or both), whether ground truth is written, and whether per-die truth is written; these choices do not rewrite the scenario. Success is reported in the status bar, failure in both the status bar and the issues list, and export stays disabled until a generation completes. YAML Editor… opens an editor loaded with the fully expanded scenario; Validate checks the text in place and moves the cursor to the first locatable issue (a line and column for YAML syntax errors, a field path for semantic errors), and Save writes the fully expanded YAML only after validation passes, so the saved file can be handed directly to the CLI. Saving from the main window writes the fully expanded scenario, so reloading yields the same scenario. The toolbar's Language selector or Settings → Language switches between English and Chinese live, without a restart, and the choice persists through QSettings.
 
 ## Python API
 
@@ -525,14 +538,16 @@ scenario = load_scenario(
     "scenario.yaml"
 )  # returns a typed scenario after structural and semantic validation
 generated = generate(scenario)  # returns a GenerationResult
-paths = export(generated, out_dir="out")  # writes CSV and ground truth per export options
+paths = export(generated, out_dir="out")  # writes CSV and ground truth by default
+paths = export(generated, out_dir="out", formats=("stdf", "csv"))  # write STDF and CSV
 paths = export(generated, out_dir="out", include_die_truth=False)  # override per-die truth
 paths = export(
     generated, out_dir="out", cp_csv_layout="blocks"
 )  # per-wafer multi-block CSV this run
 paths = export(generated, out_dir="out", include_ground_truth=False)  # skip ground truth this run
 
-# Or generate and export one lot at a time; peak memory follows a single lot:
+# Or generate and export one lot at a time; peak memory follows a single lot.
+# formats=None follows the scenario's export options.
 summary, paths = generate_to_directory(scenario, out_dir="out")
 
 for entry in generated.linkage_report:

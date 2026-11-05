@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
 from typing import cast
 
@@ -19,19 +20,24 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..scenario.models import CSV_LAYOUTS, CsvLayout, ExportOptions
+from ..scenario.models import (
+    CSV_LAYOUTS,
+    EXPORT_FORMATS,
+    CsvLayout,
+    ExportFormat,
+    ExportOptions,
+)
 from .i18n import language_manager
 
 
 class ExportDialog(QDialog):
     """Let the user choose where the current result is written.
 
-    V1 exports CSV only, so the format is shown but not selectable; the format
-    picker arrives with the STDF writer. The dialog validates its inputs
-    itself so an empty directory leaves it open with a readable message.
-
-    The CSV layout and ground-truth choices start from the scenario's export
-    options and override them for this export run only.
+    The format, CSV layout, and ground-truth choices start from the scenario's
+    export options and override them for this export run only; a format the
+    scenario disables can still be enabled here. The dialog validates its
+    inputs itself so an empty directory or an empty format selection leaves it
+    open with a readable message.
     """
 
     def __init__(
@@ -56,7 +62,11 @@ class ExportDialog(QDialog):
 
         self.output_label = QLabel(self)
         self.format_caption = QLabel(self)
-        self.format_label = QLabel(self)
+        enabled_formats = set(options.enabled_formats())
+        self.stdf_checkbox = QCheckBox(self)
+        self.stdf_checkbox.setChecked("stdf" in enabled_formats)
+        self.csv_checkbox = QCheckBox(self)
+        self.csv_checkbox.setChecked("csv" in enabled_formats)
         self.layout_caption = QLabel(self)
 
         self.layout_combo = QComboBox(self)
@@ -85,7 +95,8 @@ class ExportDialog(QDialog):
         content_layout.addWidget(self.output_label)
         content_layout.addLayout(directory_row)
         content_layout.addWidget(self.format_caption)
-        content_layout.addWidget(self.format_label)
+        content_layout.addWidget(self.stdf_checkbox)
+        content_layout.addWidget(self.csv_checkbox)
         content_layout.addWidget(self.layout_caption)
         content_layout.addWidget(self.layout_combo)
         content_layout.addWidget(self.ground_truth_checkbox)
@@ -102,7 +113,8 @@ class ExportDialog(QDialog):
         self.browse_button.setText(self.tr("Browse..."))
         self.output_label.setText(self.tr("Output directory"))
         self.format_caption.setText(self.tr("Format"))
-        self.format_label.setText(self.tr("CSV"))
+        self.stdf_checkbox.setText(self.tr("STDF"))
+        self.csv_checkbox.setText(self.tr("CSV"))
         self.layout_caption.setText(self.tr("CP CSV layout"))
         layout_labels = {
             "long": self.tr("One CSV per lot (long)"),
@@ -130,6 +142,31 @@ class ExportDialog(QDialog):
     def set_output_dir(self, path: str | Path) -> None:
         """Fill the directory field."""
         self.directory_edit.setText(str(path))
+
+    def formats(self) -> tuple[ExportFormat, ...]:
+        """The export formats selected for this run, in canonical order."""
+        selected = {
+            "stdf": self.stdf_checkbox.isChecked(),
+            "csv": self.csv_checkbox.isChecked(),
+        }
+        return tuple(format_name for format_name in EXPORT_FORMATS if selected[format_name])
+
+    def set_formats(self, formats: Sequence[str]) -> bool:
+        """Select formats, rejecting values outside the schema."""
+        requested = {format_name.lower() for format_name in formats}
+        if not requested or not requested <= set(EXPORT_FORMATS):
+            return False
+        self.stdf_checkbox.setChecked("stdf" in requested)
+        self.csv_checkbox.setChecked("csv" in requested)
+        return True
+
+    def set_include_stdf(self, enabled: bool) -> None:
+        """Enable or disable STDF output for this run."""
+        self.stdf_checkbox.setChecked(enabled)
+
+    def set_include_csv(self, enabled: bool) -> None:
+        """Enable or disable CSV output for this run."""
+        self.csv_checkbox.setChecked(enabled)
 
     def cp_csv_layout(self) -> CsvLayout:
         """The CP CSV layout selected for this run."""
@@ -167,9 +204,12 @@ class ExportDialog(QDialog):
         self._sync_truth_controls()
 
     def accept(self) -> None:
-        """Accept only a non-empty output directory."""
+        """Accept only a non-empty directory and at least one export format."""
         if self.output_dir() is None:
             self.error_label.setText(self.tr("Choose an output directory."))
+            return
+        if not self.formats():
+            self.error_label.setText(self.tr("Choose at least one export format."))
             return
         self.error_label.clear()
         super().accept()

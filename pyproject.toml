@@ -39,6 +39,7 @@ dev = [
     "mypy>=1.15",
     "pyqtgraph>=0.13,<1",
     "pyside6-essentials>=6.8,<7",
+    "pystdf>=1.4,<2",
     "pytest>=8.3",
     "pytest-qt>=4.5.0",
     "ruff>=0.9",
@@ -68,5 +69,5 @@ strict = true
 files = ["src", "tests"]
 
 [[tool.mypy.overrides]]
-module = ["pyqtgraph", "pyqtgraph.*"]
+module = ["pyqtgraph", "pyqtgraph.*", "pystdf", "pystdf.*"]
 ignore_missing_imports = true

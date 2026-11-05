@@ -20,6 +20,8 @@ def _write_export_scenario(
     layout: str = "long",
     ground_truth: bool = True,
     include_die_truth: bool = True,
+    stdf: bool = False,
+    cp_csv: bool = True,
 ) -> Path:
     document: dict[str, object] = {
         "schema_version": 1,
@@ -31,7 +33,8 @@ def _write_export_scenario(
         },
         "lots": {"count": 1, "wafers_per_lot": wafers_per_lot},
         "export": {
-            "cp_csv": True,
+            "cp_stdf": stdf,
+            "cp_csv": cp_csv,
             "cp_csv_layout": layout,
             "wat_csv": False,
             "ground_truth": ground_truth,
@@ -60,6 +63,38 @@ def test_export_dialog_defaults_to_the_scenario_options(qtbot: QtBot, tmp_path: 
     assert dialog.include_ground_truth()
     assert dialog.include_die_truth()
     assert dialog.output_dir() == tmp_path
+
+
+def test_export_dialog_exposes_the_format_choice(qtbot: QtBot, tmp_path: Path) -> None:
+    dialog = ExportDialog(tmp_path, export_options=ExportOptions())
+    qtbot.addWidget(dialog)
+
+    assert dialog.formats() == ("stdf", "csv")
+    assert dialog.set_formats(("csv",))
+    assert dialog.formats() == ("csv",)
+    assert dialog.set_formats(("stdf", "csv"))
+    assert dialog.formats() == ("stdf", "csv")
+
+    dialog.set_include_stdf(False)
+    assert dialog.formats() == ("csv",)
+    dialog.set_include_csv(False)
+    dialog.accept()
+    assert dialog.result() == 0
+    assert "format" in dialog.error_label.text()
+
+
+def test_export_dialog_can_override_scenario_disabled_formats(qtbot: QtBot, tmp_path: Path) -> None:
+    dialog = ExportDialog(
+        tmp_path,
+        export_options=ExportOptions(cp_stdf=False, cp_csv=True, wat_csv=False),
+    )
+    qtbot.addWidget(dialog)
+
+    assert dialog.stdf_checkbox.isEnabled()
+    assert not dialog.stdf_checkbox.isChecked()
+    assert dialog.formats() == ("csv",)
+    assert dialog.set_formats(("stdf", "csv"))
+    assert dialog.formats() == ("stdf", "csv")
 
 
 def test_export_dialog_overrides_layout_and_truth_options(qtbot: QtBot, tmp_path: Path) -> None:
@@ -130,6 +165,61 @@ def test_main_window_export_can_disable_ground_truth(qtbot: QtBot, tmp_path: Pat
     assert all(path.suffix == ".csv" for path in window.last_export_paths)
     assert not list(out_dir.glob("*.json"))
     assert not list(out_dir.glob("*.csv.gz"))
+
+
+def test_main_window_exports_stdf_when_requested(qtbot: QtBot, tmp_path: Path) -> None:
+    from pystdf.Importer import ImportSTDF
+
+    window = MainWindow()
+    qtbot.addWidget(window)
+    window.show()
+    assert window.load_path(
+        _write_export_scenario(
+            tmp_path,
+            stdf=True,
+            cp_csv=False,
+            ground_truth=False,
+            include_die_truth=False,
+        )
+    )
+    _generate(window, qtbot)
+    out_dir = tmp_path / "stdf-export"
+
+    assert window.export_to_directory(out_dir, formats=("stdf",))
+
+    stdf_paths = [path for path in window.last_export_paths if path.suffix == ".stdf"]
+    assert len(stdf_paths) == 1
+    names = [record.__class__.__name__.upper() for record, _ in ImportSTDF(str(stdf_paths[0]))]
+    assert names[0] == "FAR"
+    assert names[-1] == "MRR"
+
+
+def test_export_dialog_can_choose_stdf_only(qtbot: QtBot, tmp_path: Path) -> None:
+    window = MainWindow()
+    qtbot.addWidget(window)
+    window.show()
+    assert window.load_path(
+        _write_export_scenario(tmp_path, stdf=True, ground_truth=False, include_die_truth=False)
+    )
+    _generate(window, qtbot)
+    out_dir = tmp_path / "dialog-stdf"
+    problems: list[str] = []
+
+    def fill_dialog() -> None:
+        dialog = QApplication.activeModalWidget()
+        if not isinstance(dialog, ExportDialog):
+            problems.append(f"unexpected modal widget: {dialog!r}")
+            return
+        dialog.set_output_dir(out_dir)
+        dialog.set_include_csv(False)
+        dialog.accept()
+
+    QTimer.singleShot(0, fill_dialog)
+    window.export_action.trigger()
+
+    assert problems == []
+    assert window.last_export_paths
+    assert all(path.suffix == ".stdf" for path in window.last_export_paths)
 
 
 def test_export_dialog_choices_drive_the_export(qtbot: QtBot, tmp_path: Path) -> None:

@@ -71,6 +71,19 @@ def test_toolbar_language_selector_switches_language(qtbot: QtBot) -> None:
     assert window.language_actions["zh_CN"].isChecked()
 
 
+def test_export_dialog_format_errors_follow_the_language(qtbot: QtBot, tmp_path: Path) -> None:
+    window = MainWindow()
+    qtbot.addWidget(window)
+    dialog = ExportDialog(tmp_path)
+    qtbot.addWidget(dialog)
+
+    assert window.set_language("zh_CN")
+    dialog.set_include_stdf(False)
+    dialog.set_include_csv(False)
+    dialog.accept()
+    assert dialog.error_label.text() == "请至少选择一种导出格式。"
+
+
 def test_standard_dialog_buttons_follow_the_language(qtbot: QtBot) -> None:
     window = MainWindow()
     qtbot.addWidget(window)
