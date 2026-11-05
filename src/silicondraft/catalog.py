@@ -14,6 +14,7 @@ from .errors import ValidationIssue
 from .i18n import _
 
 if TYPE_CHECKING:
+    from .binroles import SoftBinRole
     from .scenario.models import Distribution, ItemOverride, Items, TestPhase
 
 
@@ -31,6 +32,7 @@ class CatalogItem:
     usl: float | None
     distribution: Distribution
     enabled: bool = True
+    soft_bin_role: SoftBinRole | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -343,6 +345,7 @@ def _new_item(
                 ).format(item=override.id, phase=override.phase),
             )
         )
+    _check_soft_bin_role_phase(override.soft_bin_role, override.phase, path, issues)
 
     item = CatalogItem(
         id=override.id,
@@ -355,6 +358,7 @@ def _new_item(
         usl=override.usl,
         distribution=override.distribution,
         enabled=override.enabled if override.enabled is not None else True,
+        soft_bin_role=override.soft_bin_role,
     )
     _check_spec_limits(item, path, issues)
     return item
@@ -374,6 +378,7 @@ def _patch_item(
             )
         )
 
+    _check_soft_bin_role_phase(override.soft_bin_role, existing.phase, path, issues)
     updated = replace(
         existing,
         enabled=override.enabled if override.enabled is not None else existing.enabled,
@@ -388,10 +393,29 @@ def _patch_item(
         description=(
             override.description if override.description is not None else existing.description
         ),
+        soft_bin_role=(
+            override.soft_bin_role if override.soft_bin_role is not None else existing.soft_bin_role
+        ),
     )
 
     _check_spec_limits(updated, path, issues)
     return updated
+
+
+def _check_soft_bin_role_phase(
+    soft_bin_role: SoftBinRole | None,
+    phase: TestPhase,
+    path: str,
+    issues: list[ValidationIssue],
+) -> None:
+    if soft_bin_role is not None and phase != "CP":
+        issues.append(
+            ValidationIssue(
+                code="SOFT_BIN_ROLE_REQUIRES_CP",
+                path=f"{path}.soft_bin_role",
+                message=_("soft_bin_role applies only to CP items"),
+            )
+        )
 
 
 _ASCII_UNIT_REPLACEMENTS = {

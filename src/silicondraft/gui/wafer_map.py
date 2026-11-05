@@ -28,22 +28,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..binning import (
-    CONTINUITY_FAIL,
-    FUNCTIONAL_FAIL,
-    HARD_BIN_DEFINITIONS,
-    PARAMETRIC_FAIL,
-    PASS,
-    SOFT_BIN_DEFINITIONS,
-    SOFT_CONTINUITY,
-    SOFT_FREQUENCY,
-    SOFT_FUNCTIONAL,
-    SOFT_IDDQ,
-    SOFT_LEAKAGE,
-    SOFT_OTHER_PARAMETRIC,
-    SOFT_PASS,
-    SOFT_VTH,
-)
+from ..binning import DEFAULT_BIN_TABLE, BinTable
+from ..binroles import HardBinRole, SoftBinRole
 from ..catalog import CatalogItem
 from ..dataset import CPWafer, GenerationResult
 from ..exporters.common import format_float
@@ -54,26 +40,23 @@ ColorMode = Literal["hard_bin", "soft_bin", "item"]
 COLOR_MODES: tuple[ColorMode, ...] = ("hard_bin", "soft_bin", "item")
 MAX_RENDER_DIES = 20_000
 
-_HARD_BIN_COLOURS: dict[int, QColor] = {
-    PASS: QColor("#2e7d32"),
-    PARAMETRIC_FAIL: QColor("#ef6c00"),
-    FUNCTIONAL_FAIL: QColor("#c62828"),
-    CONTINUITY_FAIL: QColor("#6a1b9a"),
+_HARD_BIN_ROLE_COLOURS: dict[HardBinRole, QColor] = {
+    "pass": QColor("#2e7d32"),
+    "parametric": QColor("#ef6c00"),
+    "functional": QColor("#c62828"),
+    "continuity": QColor("#6a1b9a"),
 }
-_SOFT_BIN_COLOURS: dict[int, QColor] = {
-    SOFT_PASS: QColor("#2e7d32"),
-    SOFT_CONTINUITY: QColor("#6a1b9a"),
-    SOFT_LEAKAGE: QColor("#1565c0"),
-    SOFT_IDDQ: QColor("#00838f"),
-    SOFT_VTH: QColor("#ef6c00"),
-    SOFT_FREQUENCY: QColor("#ad1457"),
-    SOFT_FUNCTIONAL: QColor("#c62828"),
-    SOFT_OTHER_PARAMETRIC: QColor("#5d4037"),
+_SOFT_BIN_ROLE_COLOURS: dict[SoftBinRole, QColor] = {
+    "pass": QColor("#2e7d32"),
+    "continuity": QColor("#6a1b9a"),
+    "leakage": QColor("#1565c0"),
+    "iddq": QColor("#00838f"),
+    "vth": QColor("#ef6c00"),
+    "frequency": QColor("#ad1457"),
+    "functional": QColor("#c62828"),
+    "other_parametric": QColor("#5d4037"),
 }
 _UNKNOWN_BIN_COLOUR = QColor("#9e9e9e")
-
-_HARD_BIN_NAMES = {definition.number: definition.name for definition in HARD_BIN_DEFINITIONS}
-_SOFT_BIN_NAMES = {definition.number: definition.name for definition in SOFT_BIN_DEFINITIONS}
 
 
 def item_colour(fraction: float) -> QColor:
@@ -230,6 +213,7 @@ class WaferMapView(QGraphicsView):
         self._render_indices = np.empty(0, dtype=np.int64)
         self._overlay_enabled = False
         self._overlays: tuple[PatternExtent, ...] = ()
+        self._set_bin_table(DEFAULT_BIN_TABLE)
 
     # -- read-only state ----------------------------------------------------
 
@@ -314,9 +298,11 @@ class WaferMapView(QGraphicsView):
         if result is not None:
             self._wafer_radius_mm = result.scenario.wafer.diameter_mm / 2
             self._die_size_mm = result.scenario.wafer.die_size_mm
+            self._set_bin_table(result.bin_table)
         else:
             self._wafer_radius_mm = 0.0
             self._die_size_mm = (0.0, 0.0)
+            self._set_bin_table(DEFAULT_BIN_TABLE)
         if self._item_id not in self._item_lookup:
             self._item_id = self._items[0].id if self._items else None
         self._rebuild()
@@ -375,9 +361,9 @@ class WaferMapView(QGraphicsView):
         """The colour of one die under the current colour mode."""
         wafer = self._wafer_or_raise()
         if self._color_mode == "hard_bin":
-            return _HARD_BIN_COLOURS.get(int(wafer.hard_bin[die_index]), _UNKNOWN_BIN_COLOUR)
+            return self._hard_bin_colours.get(int(wafer.hard_bin[die_index]), _UNKNOWN_BIN_COLOUR)
         if self._color_mode == "soft_bin":
-            return _SOFT_BIN_COLOURS.get(int(wafer.soft_bin[die_index]), _UNKNOWN_BIN_COLOUR)
+            return self._soft_bin_colours.get(int(wafer.soft_bin[die_index]), _UNKNOWN_BIN_COLOUR)
         return item_colour(self._fraction(self.display_value(die_index)))
 
     def die_rect(self, die_index: int) -> QRectF:
@@ -397,13 +383,13 @@ class WaferMapView(QGraphicsView):
         )
         if self._color_mode == "hard_bin":
             code = int(wafer.hard_bin[die_index])
-            name = _HARD_BIN_NAMES.get(code, "?")
+            name = self._hard_bin_names.get(code, "?")
             return self.tr("{wafer}  hard_bin={code} ({name})  {position}").format(
                 wafer=wafer.wafer_id, code=code, name=name, position=position
             )
         if self._color_mode == "soft_bin":
             code = int(wafer.soft_bin[die_index])
-            name = _SOFT_BIN_NAMES.get(code, "?")
+            name = self._soft_bin_names.get(code, "?")
             return self.tr("{wafer}  soft_bin={code} ({name})  {position}").format(
                 wafer=wafer.wafer_id, code=code, name=name, position=position
             )
@@ -501,6 +487,18 @@ class WaferMapView(QGraphicsView):
             if extent is not None:
                 overlays.append(extent)
         return tuple(overlays)
+
+    def _set_bin_table(self, table: BinTable) -> None:
+        self._hard_bin_names = {definition.number: definition.name for definition in table.hard}
+        self._soft_bin_names = {definition.number: definition.name for definition in table.soft}
+        self._hard_bin_colours = {
+            table.hard_by_role[role].number: colour
+            for role, colour in _HARD_BIN_ROLE_COLOURS.items()
+        }
+        self._soft_bin_colours = {
+            table.soft_by_role[role].number: colour
+            for role, colour in _SOFT_BIN_ROLE_COLOURS.items()
+        }
 
     def _sync_overlay_layer(self) -> None:
         visible = self._overlay_enabled and bool(self._overlays)

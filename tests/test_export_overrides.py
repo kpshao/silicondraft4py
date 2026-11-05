@@ -53,6 +53,30 @@ def test_export_overrides_layout_and_truth_output(tmp_path: Path) -> None:
     assert any(name.endswith(".json") for name in names)
 
 
+def test_export_refuses_to_replace_existing_files_without_overwrite(tmp_path: Path) -> None:
+    result = generate(load_scenario(_write_scenario(tmp_path)))
+    out_dir = tmp_path / "out"
+
+    first = export(result, out_dir)
+    assert first
+    with pytest.raises(ExportError, match="already exists"):
+        export(result, out_dir)
+
+    replaced = export(result, out_dir, overwrite=True)
+    assert len(replaced) == len(first)
+
+
+def test_stdf_export_also_honours_the_overwrite_option(tmp_path: Path) -> None:
+    result = generate(load_scenario(_write_scenario(tmp_path)))
+    out_dir = tmp_path / "out"
+
+    first = export(result, out_dir, formats=("stdf",))
+    assert first
+    with pytest.raises(ExportError, match="already exists"):
+        export(result, out_dir, formats=("stdf",))
+    assert export(result, out_dir, formats=("stdf",), overwrite=True)
+
+
 def test_export_rejects_an_unknown_cp_csv_layout(tmp_path: Path) -> None:
     result = generate(load_scenario(_write_scenario(tmp_path)))
     out_dir = tmp_path / "out"

@@ -10,6 +10,8 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from ..binroles import HardBinRole, SoftBinRole
+
 FiniteFloat = Annotated[float, Field(allow_inf_nan=False)]
 PositiveFloat = Annotated[float, Field(gt=0, allow_inf_nan=False)]
 NonNegativeFloat = Annotated[float, Field(ge=0, allow_inf_nan=False)]
@@ -18,6 +20,9 @@ Correlation = Annotated[float, Field(ge=-1.0, le=1.0, allow_inf_nan=False)]
 Distribution = Literal["normal", "lognormal", "bernoulli"]
 TestPhase = Literal["CP", "WAT"]
 ScenarioPreset = Literal["quick", "trend", "demo"]
+#: STDF ``U*2`` reserves 65535 as its missing code.
+BinCode = Annotated[int, Field(ge=1, le=65_534)]
+BinName = Annotated[str, Field(min_length=1, max_length=255, pattern=r"^[\x20-\x7e]+$")]
 PatternKind = Literal[
     "center_high",
     "center_low",
@@ -111,7 +116,8 @@ class ItemOverride(_StrictModel):
     An override whose ``id`` matches a catalog item patches that item; an
     unknown ``id`` adds a new item and must provide ``phase``, ``test_num``,
     ``unit``, ``typical``, and ``distribution``. Set ``remove: true`` to drop
-    an item from the resolved catalog.
+    an item from the resolved catalog. CP items may set ``soft_bin_role`` to
+    choose the soft-bin category a failure contributes to.
     """
 
     id: str = Field(min_length=1)
@@ -125,6 +131,7 @@ class ItemOverride(_StrictModel):
     usl: FiniteFloat | None = None
     distribution: Distribution | None = None
     description: str | None = None
+    soft_bin_role: SoftBinRole | None = None
 
 
 class Items(_StrictModel):
@@ -132,6 +139,25 @@ class Items(_StrictModel):
 
     preset: Literal["generic_cmos_logic_55nm"] = "generic_cmos_logic_55nm"
     overrides: list[ItemOverride] = Field(default_factory=list)
+
+
+class BinOverride(_StrictModel):
+    """A patch to one hard- or soft-bin role in the resolved bin table.
+
+    The role keeps its failure semantics; only its exported code, name, and
+    description can change, so pass/fail and bin derivation stay consistent.
+    """
+
+    code: BinCode | None = None
+    name: BinName | None = None
+    description: str | None = Field(default=None, max_length=255)
+
+
+class Bins(_StrictModel):
+    """Overrides for the built-in hard and soft bin tables."""
+
+    hard: dict[HardBinRole, BinOverride] = Field(default_factory=dict)
+    soft: dict[SoftBinRole, BinOverride] = Field(default_factory=dict)
 
 
 class Pattern(_StrictModel):
@@ -221,6 +247,7 @@ class Scenario(_StrictModel):
     wafer: Wafer = Field(default_factory=Wafer)
     lots: Lots = Field(default_factory=Lots)
     items: Items = Field(default_factory=Items)
+    bins: Bins = Field(default_factory=Bins)
     patterns: list[Pattern] = Field(default_factory=list)
     defects: Defects = Field(default_factory=Defects)
     linkage: Linkage = Field(default_factory=Linkage)

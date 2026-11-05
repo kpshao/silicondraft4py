@@ -11,7 +11,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .binning import PASS, classify_bins
+from .binning import BinTable, classify_bins, resolve_bin_table
 from .catalog import CatalogItem, resolve_catalog
 from .dataset import (
     CPLot,
@@ -76,6 +76,7 @@ class _Prepared:
     items: tuple[CatalogItem, ...]
     wat_items: tuple[CatalogItem, ...]
     items_by_id: dict[str, CatalogItem]
+    bin_table: BinTable
     latent_model: LatentModel
     layout: DieLayout
     wat_layout: WatSiteLayout
@@ -175,6 +176,7 @@ def export(
     include_die_truth: bool | None = None,
     cp_csv_layout: CsvLayout | None = None,
     include_ground_truth: bool | None = None,
+    overwrite: bool = False,
 ) -> tuple[Path, ...]:
     """Export a generation result and return the paths written.
 
@@ -190,6 +192,9 @@ def export(
     is enabled. ``cp_csv_layout`` overrides ``export.cp_csv_layout`` and
     ``include_ground_truth`` overrides ``export.ground_truth``; the GUI export
     dialog uses them to offer per-run choices without rewriting the scenario.
+
+    ``overwrite`` defaults to ``False``: an existing artifact raises
+    :class:`ExportError`, and passing ``True`` replaces it.
     """
     _check_formats(formats)
     _check_cp_csv_layout(cp_csv_layout)
@@ -200,11 +205,11 @@ def export(
     try:
         if "csv" in requested:
             if options.cp_csv:
-                paths.extend(export_cp_csv(result, out, layout=cp_csv_layout))
+                paths.extend(export_cp_csv(result, out, layout=cp_csv_layout, overwrite=overwrite))
             if options.wat_csv:
-                paths.extend(export_wat_csv(result, out))
+                paths.extend(export_wat_csv(result, out, overwrite=overwrite))
         if "stdf" in requested:
-            paths.extend(export_cp_stdf(result, out))
+            paths.extend(export_cp_stdf(result, out, overwrite=overwrite))
         write_ground_truth = (
             result.scenario.export.ground_truth
             if include_ground_truth is None
@@ -216,7 +221,14 @@ def export(
                 if include_die_truth is None
                 else include_die_truth
             )
-            paths.extend(export_ground_truth(result, out, include_die_truth=write_die_truth))
+            paths.extend(
+                export_ground_truth(
+                    result,
+                    out,
+                    include_die_truth=write_die_truth,
+                    overwrite=overwrite,
+                )
+            )
     except OSError as exc:
         raise ExportError(
             _("cannot export to {path}: {error}").format(path=out_dir, error=exc)
@@ -230,6 +242,7 @@ def generate_to_directory(
     *,
     include_die_truth: bool | None = None,
     formats: Sequence[str] | None = None,
+    overwrite: bool = False,
 ) -> tuple[StreamingSummary, tuple[Path, ...]]:
     """Generate one lot at a time and write its artifacts before releasing it.
 
@@ -240,6 +253,8 @@ def generate_to_directory(
 
     ``formats`` selects the artifacts the same way :func:`export` does. When
     it is ``None`` the scenario's ``export`` options choose the formats.
+    ``overwrite`` defaults to ``False``; the CLI passes its ``--overwrite``
+    flag through, so existing artifacts are refused unless it is set.
     """
     if formats is not None:
         _check_formats(formats)
@@ -287,16 +302,16 @@ def generate_to_directory(
             )
             if write_csv:
                 if scenario_config.cp_csv:
-                    paths.extend(export_cp_csv(shell, out))
+                    paths.extend(export_cp_csv(shell, out, overwrite=overwrite))
                 if scenario_config.wat_csv:
-                    paths.extend(export_wat_csv(shell, out))
+                    paths.extend(export_wat_csv(shell, out, overwrite=overwrite))
             if write_stdf:
-                paths.extend(export_cp_stdf(shell, out))
+                paths.extend(export_cp_stdf(shell, out, overwrite=overwrite))
             die_truth_file: str | None = None
             if builder is not None and write_die_truth:
                 die_truth_file = die_truth_filename(product, data.cp_lot.lot_id, timestamp)
                 die_truth_path = out / die_truth_file
-                write_die_truth_file(die_truth_path, data.cp_lot)
+                write_die_truth_file(die_truth_path, data.cp_lot, overwrite=overwrite)
                 paths.append(die_truth_path)
             if builder is not None:
                 builder.add_lot(
@@ -312,7 +327,7 @@ def generate_to_directory(
         if builder is not None:
             builder.add_linkage(linkage_report)
             manifest_path = out / manifest_filename(product, timestamp)
-            write_manifest_file(manifest_path, builder.build())
+            write_manifest_file(manifest_path, builder.build(), overwrite=overwrite)
             paths.append(manifest_path)
     except OSError as exc:
         raise ExportError(
@@ -342,6 +357,7 @@ def _prepare(scenario: Scenario) -> _Prepared:
     items = tuple(item for item in enabled_items if item.phase == "CP")
     wat_items = tuple(item for item in enabled_items if item.phase == "WAT")
     items_by_id = {item.id: item for item in items}
+    bin_table = resolve_bin_table(scenario.bins)
     latent_model = build_latent_model(resolution.catalog, scenario.linkage)
     generated_at = datetime.now(UTC)
     layout = layout_dies(scenario.wafer)
@@ -351,6 +367,7 @@ def _prepare(scenario: Scenario) -> _Prepared:
         items=items,
         wat_items=wat_items,
         items_by_id=items_by_id,
+        bin_table=bin_table,
         latent_model=latent_model,
         layout=layout,
         wat_layout=wat_layout,
@@ -443,7 +460,7 @@ def _iter_lots(
                 recovery,
                 _rng(scenario.seed, _TAG_DEFECT, lot_number, wafer_number),
             )
-            bins = classify_bins(prepared.items, values, prepared.layout.count)
+            bins = classify_bins(prepared.items, values, prepared.layout.count, prepared.bin_table)
             wafers.append(
                 CPWafer(
                     wafer_id=wafer_id,
@@ -454,13 +471,14 @@ def _iter_lots(
                     test_site=prepared.layout.test_site,
                     hard_bin=bins.hard,
                     soft_bin=bins.soft,
-                    passed=bins.hard == PASS,
+                    passed=bins.hard == prepared.bin_table.hard_pass,
                     values=values,
                     factors=factors,
                     pattern_hits=pattern_hits,
                     defect_failure=defects.failure,
                     defect_clusters=defects.clusters,
                     tested_at=cp_time,
+                    bin_table=prepared.bin_table,
                 )
             )
             wat_wafers.append(

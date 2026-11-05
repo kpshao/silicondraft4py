@@ -52,7 +52,7 @@ SiliconDraft 生成可复现的合成半导体测试数据，用于验证良率�
 
 #### 4.1.2 分节
 
-`schema_version`、`preset`、`product`、`wafer`、`lots`、`items`、`patterns`、`defects`、`linkage`、`export`、`seed`、`metadata`。
+`schema_version`、`preset`、`product`、`wafer`、`lots`、`items`、`bins`、`patterns`、`defects`、`linkage`、`export`、`seed`、`metadata`。
 
 `product.test_program` 为可选字段，表示测试程序名；未填写时回退为 `items.preset`。
 
@@ -96,6 +96,16 @@ lots:
 items:
   preset: generic_cmos_logic_55nm
   overrides: []
+
+bins:
+  hard:
+    continuity:
+      code: 40
+      name: CT_FAIL
+  soft:
+    continuity:
+      code: 1201
+      name: CONTACT
 
 patterns:
   - kind: edge_low
@@ -153,7 +163,7 @@ metadata:
 
 - 内置 `generic_cmos_logic_55nm` 预设：15 个 WAT 项 + 21 个 CP 项，定义见 [V1 测试项目录](v1-test-item-catalog.md)。
 - 每项包含：`test_num`、规范英文 ID、单位、典型值、LSL/USL、分布、业务含义、测试条件。
-- `items.overrides` 支持增删项、修改单位/限值/分布/联动参数；GUI V1 只做启用/停用与限值编辑，完整项编辑器留 V2。
+- `items.overrides` 支持增删项、修改单位/限值/分布/联动参数；CP 项可设置 `soft_bin_role` 指定失效类别；GUI V1 只做启用/停用与限值编辑，完整项编辑器留 V2。
 - 导出文件只使用规范英文 ID；中文名称仅用于界面显示。
 
 ### 4.4 生成流程
@@ -190,8 +200,9 @@ V1 模式目录：`center-high`、`center-low`、`edge-high`、`edge-low`、`rin
 
 - Hard bin 默认：1=pass、2=parametric fail、3=functional/structural fail、4=continuity/contact fail。
 - Soft bin 默认：100=pass、201=continuity、202=leakage、203=Iddq、204=Vth、205=frequency、206=functional/scan、207=other parametric。
-- pass/fail 由 spec limits 与 bin 规则推导；一颗 die 有多个失败项时，先按 hard bin 严重度（continuity → functional → parametric），再按 soft bin 号（leakage → Iddq → Vth → frequency → other parametric）归类；bin 表可在 scenario 覆盖（当前先实现内置默认表，scenario 覆盖留待后续里程碑）。
-- STDF 输出 HBR/SBR；CP blocks CSV 的 `[BIN_DEFINITIONS]` 块同时输出 HARD 与 SOFT 定义，`[TEST_DATA]` 包含 hard bin 与 soft bin 列；CP long CSV 在每行输出 `hard_bin`/`soft_bin` 与对应名称。
+- pass/fail 由 spec limits 与 bin 规则推导；一颗 die 有多个失败项时，先按 hard bin 严重度（continuity → functional → parametric），再按 soft bin 号（leakage → Iddq → Vth → frequency → other parametric）归类。
+- scenario 的 `bins` 节按语义角色覆盖 hard/soft bin 的 `code`、`name` 与 `description`（hard：`pass`/`parametric`/`functional`/`continuity`；soft：`pass`/`continuity`/`leakage`/`iddq`/`vth`/`frequency`/`functional`/`other_parametric`）；未覆盖的角色使用默认值。角色到 hard bin 的映射与失败优先级固定，code 在同一张表内必须唯一且落在 STDF `U*2` 范围（1–65534，65535 为 missing code）。自定义 CP 测试项可在 `items.overrides` 中设置 `soft_bin_role` 选择失效类别；WAT 项不能设置。详见 [ADR-0011](../adr/0011-configurable-bin-table-by-role.md)。
+- STDF 输出 HBR/SBR；CP blocks CSV 的 `[BIN_DEFINITIONS]` 块同时输出 HARD 与 SOFT 定义，`[TEST_DATA]` 包含 hard bin 与 soft bin 列；CP long CSV 在每行输出 `hard_bin`/`soft_bin` 与对应名称。所有导出与 GUI 预览读取同一张解析后的 bin 表。
 
 #### 4.4.6 可复现性
 
@@ -236,6 +247,9 @@ silicondraft version
 常用参数：`--seed`、`--output`、`--formats stdf,csv`、`--lang en|zh`、`--log-level`、`--dry-run`、`--overwrite`、`--no-die-truth`。
 
 - `generate` 一步完成生成与导出。
+- `generate --dry-run` 只校验并打印摘要及生效的 `seed` / `formats` / per-die truth / `overwrite` 选项，不生成、不写文件；此时 `--output` 可省略，未加 `--dry-run` 时必填。
+- `generate --overwrite` 覆盖已存在的同名产物；默认拒绝覆盖并返回导出错误 `3`（错误信息提示使用 `--overwrite`）。产物名含微秒时间戳，普通重跑通常不冲突，该参数主要面向重复导出同一结果或固定时间戳的脚本。
+- `--log-level` 取 `DEBUG` / `INFO` / `WARNING` / `ERROR` / `CRITICAL`，默认 `WARNING`；日志保持英文，与 `--lang` 无关。
 - `validate` 只校验并打印摘要（die 数、item 数、预计文件大小/耗时）。
 - 退出码：0 成功、1 配置错误、2 生成错误、3 导出错误。
 - 不提供纯命令行拼装完整 scenario 的模式；scenario YAML 是唯一入口。
@@ -412,7 +426,7 @@ Terminology follows [GLOSSARY.md](../../GLOSSARY.md). Core relationships:
 
 #### 4.1.2 Sections
 
-`schema_version`, `preset`, `product`, `wafer`, `lots`, `items`, `patterns`, `defects`, `linkage`, `export`, `seed`, `metadata`.
+`schema_version`, `preset`, `product`, `wafer`, `lots`, `items`, `bins`, `patterns`, `defects`, `linkage`, `export`, `seed`, `metadata`.
 
 `product.test_program` is optional and names the test program; when omitted it falls back to `items.preset`.
 
@@ -456,6 +470,16 @@ lots:
 items:
   preset: generic_cmos_logic_55nm
   overrides: []
+
+bins:
+  hard:
+    continuity:
+      code: 40
+      name: CT_FAIL
+  soft:
+    continuity:
+      code: 1201
+      name: CONTACT
 
 patterns:
   - kind: edge_low
@@ -513,7 +537,7 @@ metadata:
 
 - Built-in `generic_cmos_logic_55nm` preset: 15 WAT + 21 CP items, defined in [V1 test item catalog](v1-test-item-catalog.md).
 - Each item has `test_num`, canonical English ID, unit, typical value, LSL/USL, distribution, business meaning, and test conditions.
-- `items.overrides` can add/remove items and change units, limits, distributions, and linkage parameters. GUI V1 only enables/disables items and edits limits; a full item editor is V2.
+- `items.overrides` can add/remove items and change units, limits, distributions, and linkage parameters; CP items may set `soft_bin_role` to choose their failure category. GUI V1 only enables/disables items and edits limits; a full item editor is V2.
 - Export files use canonical English IDs only; Chinese names are UI-only.
 
 ### 4.4 Generation pipeline
@@ -550,8 +574,9 @@ V1 pattern catalog: `center-high`, `center-low`, `edge-high`, `edge-low`, `ring`
 
 - Default hard bins: 1=pass, 2=parametric fail, 3=functional/structural fail, 4=continuity/contact fail.
 - Default soft bins: 100=pass, 201=continuity, 202=leakage, 203=Iddq, 204=Vth, 205=frequency, 206=functional/scan, 207=other parametric.
-- Pass/fail is derived from spec limits and bin rules; when a die fails multiple items, the bin is chosen by hard-bin severity (continuity → functional → parametric), then by soft-bin number (leakage → Iddq → Vth → frequency → other parametric); the bin table is overridable in the scenario (the built-in defaults come first, with scenario overrides deferred to a later milestone).
-- STDF writes HBR/SBR; the CP blocks CSV `[BIN_DEFINITIONS]` block carries both HARD and SOFT definitions, and `[TEST_DATA]` includes hard-bin and soft-bin columns; the CP long CSV emits `hard_bin`/`soft_bin` with their names on every row.
+- Pass/fail is derived from spec limits and bin rules; when a die fails multiple items, the bin is chosen by hard-bin severity (continuity → functional → parametric), then by soft-bin number (leakage → Iddq → Vth → frequency → other parametric).
+- The scenario's `bins` section overrides each semantic role's hard/soft `code`, `name`, and `description` (hard: `pass`/`parametric`/`functional`/`continuity`; soft: `pass`/`continuity`/`leakage`/`iddq`/`vth`/`frequency`/`functional`/`other_parametric`); roles that are not overridden keep their defaults. The role-to-hard-bin mapping and failure precedence stay fixed, and codes must be unique within a table and fall in the STDF `U*2` range (1–65534; 65535 is the missing code). Custom CP items can set `soft_bin_role` in `items.overrides` to choose their failure category; WAT items cannot. See [ADR-0011](../adr/0011-configurable-bin-table-by-role.md).
+- STDF writes HBR/SBR; the CP blocks CSV `[BIN_DEFINITIONS]` block carries both HARD and SOFT definitions, and `[TEST_DATA]` includes hard-bin and soft-bin columns; the CP long CSV emits `hard_bin`/`soft_bin` with their names on every row. All exports and GUI previews read the same resolved bin table.
 
 #### 4.4.6 Reproducibility
 
@@ -596,6 +621,9 @@ silicondraft version
 Common flags: `--seed`, `--output`, `--formats stdf,csv`, `--lang en|zh`, `--log-level`, `--dry-run`, `--overwrite`, `--no-die-truth`.
 
 - `generate` performs generation and export in one step.
+- `generate --dry-run` only validates and prints the summary plus the effective `seed` / `formats` / per-die truth / `overwrite` options; it generates and writes nothing, makes `--output` optional, and `--output` remains required without it.
+- `generate --overwrite` replaces existing artifacts; by default an existing artifact is refused with export error `3` and a message pointing at `--overwrite`. Artifact names carry a microsecond timestamp, so ordinary reruns rarely collide; the flag mainly serves scripts that re-export the same result or use a fixed timestamp.
+- `--log-level` accepts `DEBUG` / `INFO` / `WARNING` / `ERROR` / `CRITICAL` (default `WARNING`); logs stay English regardless of `--lang`.
 - `validate` validates and prints a summary (die count, item count, estimated file size/runtime).
 - Exit codes: 0 success, 1 configuration error, 2 generation error, 3 export error.
 - No fully flag-driven mode for assembling a complete scenario; scenario YAML is the single entry point.

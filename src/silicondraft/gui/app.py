@@ -181,8 +181,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     arguments = list(sys.argv if argv is None else argv)
     smoke_options, qt_arguments = parse_smoke_test_options(arguments)
     app = create_application(qt_arguments)
-    language_manager(app).restore(QSettings())
-    window = MainWindow()
+    settings = QSettings()
+    language_manager(app).restore(settings)
+    window = MainWindow(settings=settings)
     window.show()
     if smoke_options is not None:
         return run_smoke_test(app, window, smoke_options)

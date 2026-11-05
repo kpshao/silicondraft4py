@@ -38,6 +38,7 @@ from ..scenario.models import Pattern, Scenario
 from .common import (
     CsvWriter,
     engine_version,
+    ensure_output_path,
     format_float,
     format_timestamp,
     safe_filename_part,
@@ -69,7 +70,11 @@ _DIE_TRUTH_HEADER: tuple[str, ...] = (
 
 
 def export_ground_truth(
-    result: GenerationResult, out_dir: Path, *, include_die_truth: bool
+    result: GenerationResult,
+    out_dir: Path,
+    *,
+    include_die_truth: bool,
+    overwrite: bool = False,
 ) -> tuple[Path, ...]:
     """Write the manifest and, when enabled, one per-die truth file per lot."""
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -82,19 +87,22 @@ def export_ground_truth(
         for lot in result.lots:
             name = die_truth_filename(product, lot.lot_id, timestamp)
             path = out_dir / name
-            write_die_truth_file(path, lot)
+            write_die_truth_file(path, lot, overwrite=overwrite)
             die_truth_files[lot.lot_id] = name
             paths.append(path)
 
     manifest = build_manifest(result, die_truth_files)
     manifest_path = out_dir / manifest_filename(product, timestamp)
-    write_manifest_file(manifest_path, manifest)
+    write_manifest_file(manifest_path, manifest, overwrite=overwrite)
     paths.append(manifest_path)
     return tuple(paths)
 
 
-def write_manifest_file(path: Path, manifest: Mapping[str, Any]) -> None:
+def write_manifest_file(
+    path: Path, manifest: Mapping[str, Any], *, overwrite: bool = False
+) -> None:
     """Write a manifest JSON document, creating its directory."""
+    ensure_output_path(path, overwrite=overwrite)
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as stream:
         json.dump(manifest, stream, ensure_ascii=False, indent=2)
@@ -111,8 +119,9 @@ def manifest_filename(product: str, timestamp: str) -> str:
     return f"{product}_ground_truth_{timestamp}.json"
 
 
-def write_die_truth_file(path: Path, lot: CPLot) -> None:
+def write_die_truth_file(path: Path, lot: CPLot, *, overwrite: bool = False) -> None:
     """Write one lot's per-die truth rows to a gzip CSV."""
+    ensure_output_path(path, overwrite=overwrite)
     path.parent.mkdir(parents=True, exist_ok=True)
     with (
         path.open("wb") as raw,

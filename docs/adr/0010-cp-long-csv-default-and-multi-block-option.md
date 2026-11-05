@@ -24,6 +24,8 @@ CP CSV 原先只有每 wafer 一个文件的四块布局（ADR-0005），下游 
 
 **后续更新（T12）：** GUI 导出对话框可以按次覆盖 `cp_csv_layout`（`long` / `blocks` / `both`）、`ground_truth` 与 `include_die_truth`，覆盖只作用于本次导出，不写回 scenario。T12 所说的 split-by-wafer 即选择 `blocks` 布局（每 wafer 一个多块 CSV），因此不重新引入 ADR-0005 移除的 `export.split_by_wafer` schema 字段。
 
+**后续更新（ADR-0011）：** `hard_bin_name`/`soft_bin_name` 不再来自静态定义，而是来自 scenario `bins` 节解析后的表；`die_pass` 与 `hard_bin == 1` 的约定改为「`hard_bin` 等于 `pass` 角色的 hard 码（默认 1）」。表头与列语义不变。
+
 <details>
 <summary>English</summary>
 
@@ -52,5 +54,7 @@ The CP CSV previously only had the per-wafer four-block layout (ADR-0005), so pa
 - The existing WAT long CSV column style becomes the shared reference for both phases; if WAT's multi-block layout is revisited later, this ADR is the reference point.
 
 **Update (T12):** The GUI export dialog can override `cp_csv_layout` (`long` / `blocks` / `both`), `ground_truth`, and `include_die_truth` for one export run without writing the override back to the scenario. The split-by-wafer choice in T12 means selecting the `blocks` layout (one multi-block CSV per wafer); it does not reintroduce the `export.split_by_wafer` schema field removed by ADR-0005.
+
+**Update (ADR-0011):** `hard_bin_name`/`soft_bin_name` no longer come from static definitions but from the table resolved from the scenario's `bins` section; the `die_pass` and `hard_bin == 1` convention becomes "`hard_bin` equals the `pass` role's hard code (default 1)". The header and column semantics are unchanged.
 
 </details>
