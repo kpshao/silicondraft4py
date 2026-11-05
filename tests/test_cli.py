@@ -8,6 +8,7 @@ import pytest
 from silicondraft import __version__
 from silicondraft.cli import main
 from silicondraft.errors import ExportError
+from silicondraft.scenario.models import MAX_SEED
 
 
 def _write_valid_scenario(tmp_path: Path) -> Path:
@@ -113,6 +114,8 @@ def _write_tiny_scenario(
     cp_csv_layout: str | None = None,
     cp_stdf: bool = True,
     cp_csv: bool = True,
+    seed: int = 20260105,
+    start_date: str | None = None,
 ) -> Path:
     lines = [
         "schema_version: 1",
@@ -120,14 +123,20 @@ def _write_tiny_scenario(
         "  name: GEN55LOGIC",
         "lots:",
         "  wafers_per_lot: 1",
-        "export:",
-        "  wat_csv: false",
-        f"  cp_stdf: {'true' if cp_stdf else 'false'}",
-        f"  cp_csv: {'true' if cp_csv else 'false'}",
     ]
+    if start_date is not None:
+        lines.append(f'  start_date: "{start_date}"')
+    lines.extend(
+        [
+            "export:",
+            "  wat_csv: false",
+            f"  cp_stdf: {'true' if cp_stdf else 'false'}",
+            f"  cp_csv: {'true' if cp_csv else 'false'}",
+        ]
+    )
     if cp_csv_layout is not None:
         lines.append(f"  cp_csv_layout: {cp_csv_layout}")
-    lines.append("seed: 20260105")
+    lines.append(f"seed: {seed}")
     path = tmp_path / "tiny.yaml"
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return path
@@ -213,6 +222,43 @@ def test_generate_writes_long_cp_csv_by_default(
     assert len(rows) - 1 == 2700 * 21
 
 
+def test_generate_subprocess_smoke(tmp_path: Path) -> None:
+    import subprocess
+    import sys
+
+    from pystdf.Importer import ImportSTDF
+
+    scenario_path = _write_tiny_scenario(tmp_path)
+    output_dir = tmp_path / "subprocess-out"
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "silicondraft",
+            "generate",
+            "-c",
+            str(scenario_path),
+            "-o",
+            str(output_dir),
+        ],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=120,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert "generated: 1 lot(s), 1 wafer(s), 2700 die(s)" in completed.stdout
+    assert "exported:" in completed.stdout
+    stdf_path = next(output_dir.glob("*.stdf"))
+    names = [record.__class__.__name__.upper() for record, _ in ImportSTDF(str(stdf_path))]
+    assert names[0] == "FAR"
+    assert names[-1] == "MRR"
+    assert "PRR" in names
+
+
 def test_generate_writes_a_parseable_stdf_by_default(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -248,6 +294,87 @@ def test_generate_honours_cp_stdf_false(tmp_path: Path, capsys: pytest.CaptureFi
     assert captured.err == ""
     assert not list(output_dir.glob("*.stdf"))
     assert list(output_dir.glob("*.csv"))
+
+
+def test_generate_maps_generation_failures_to_exit_two(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scenario_path = _write_tiny_scenario(tmp_path)
+
+    def _fail_generation(*args: object, **kwargs: object) -> tuple[object, tuple[Path, ...]]:
+        raise RuntimeError("unexpected engine failure")
+
+    monkeypatch.setattr("silicondraft.cli.generate_to_directory", _fail_generation)
+
+    exit_code = main(["generate", "-c", str(scenario_path), "-o", str(tmp_path / "out")])
+
+    captured = capsys.readouterr()
+    assert exit_code == 2
+    assert "generation failed: unexpected engine failure" in captured.err
+
+
+def _cp_csv_bytes(directory: Path) -> bytes:
+    return next(directory.glob("*_CP_*.csv")).read_bytes()
+
+
+def test_generate_seed_option_overrides_the_scenario_seed(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    scenario_dir = tmp_path / "scenario"
+    scenario_dir.mkdir()
+    scenario = _write_tiny_scenario(scenario_dir, seed=11, start_date="2026-01-05T08:00:00")
+    explicit_dir = tmp_path / "explicit"
+    explicit_dir.mkdir()
+    explicit = _write_tiny_scenario(explicit_dir, seed=42, start_date="2026-01-05T08:00:00")
+
+    default_out = tmp_path / "default"
+    override_out = tmp_path / "override"
+    explicit_out = tmp_path / "explicit-out"
+    for scenario_path, output_dir, extra in (
+        (scenario, default_out, []),
+        (scenario, override_out, ["--seed", "42"]),
+        (explicit, explicit_out, []),
+    ):
+        arguments = ["generate", "-c", str(scenario_path), "-o", str(output_dir), *extra]
+        assert main(arguments) == 0
+        capsys.readouterr()
+
+    assert _cp_csv_bytes(override_out) == _cp_csv_bytes(explicit_out)
+    assert _cp_csv_bytes(default_out) != _cp_csv_bytes(override_out)
+
+    override_manifest = json.loads(
+        next(override_out.glob("*ground_truth*.json")).read_text(encoding="utf-8")
+    )
+    default_manifest = json.loads(
+        next(default_out.glob("*ground_truth*.json")).read_text(encoding="utf-8")
+    )
+    assert override_manifest["seed"] == 42
+    assert override_manifest["scenario"]["seed"] == 42
+    assert default_manifest["seed"] == 11
+
+
+def test_generate_rejects_an_invalid_seed_override(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    scenario_path = _write_tiny_scenario(tmp_path)
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(
+            [
+                "generate",
+                "-c",
+                str(scenario_path),
+                "-o",
+                str(tmp_path / "out"),
+                "--seed=-1",
+            ]
+        )
+
+    assert exc_info.value.code == 1
+    assert f"seed must be between 0 and {MAX_SEED}" in capsys.readouterr().err
+    assert not (tmp_path / "out").exists()
 
 
 def test_generate_maps_stdf_export_failures_to_exit_three(

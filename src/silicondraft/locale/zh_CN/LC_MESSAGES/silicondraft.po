@@ -29,6 +29,15 @@ msgstr "跳过逐 die 真值 CSV.GZ（仍写出 JSON 清单）"
 msgid "comma-separated export formats: stdf, csv"
 msgstr "逗号分隔的导出格式：stdf, csv"
 
+msgid "override the scenario seed for this run"
+msgstr "覆盖本次运行使用的场景随机种子"
+
+msgid "seed must be an integer"
+msgstr "随机种子必须是整数"
+
+msgid "seed must be between 0 and {maximum}"
+msgstr "随机种子必须介于 0 与 {maximum} 之间"
+
 msgid "validate a scenario YAML file"
 msgstr "校验场景 YAML 文件"
 
