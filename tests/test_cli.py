@@ -107,7 +107,13 @@ def test_invalid_arguments_exit_one(
     assert "usage:" in capsys.readouterr().err
 
 
-def _write_tiny_scenario(tmp_path: Path, *, cp_csv_layout: str | None = None) -> Path:
+def _write_tiny_scenario(
+    tmp_path: Path,
+    *,
+    cp_csv_layout: str | None = None,
+    cp_stdf: bool = True,
+    cp_csv: bool = True,
+) -> Path:
     lines = [
         "schema_version: 1",
         "product:",
@@ -116,6 +122,8 @@ def _write_tiny_scenario(tmp_path: Path, *, cp_csv_layout: str | None = None) ->
         "  wafers_per_lot: 1",
         "export:",
         "  wat_csv: false",
+        f"  cp_stdf: {'true' if cp_stdf else 'false'}",
+        f"  cp_csv: {'true' if cp_csv else 'false'}",
     ]
     if cp_csv_layout is not None:
         lines.append(f"  cp_csv_layout: {cp_csv_layout}")
@@ -203,6 +211,132 @@ def test_generate_writes_long_cp_csv_by_default(
         "timestamp",
     ]
     assert len(rows) - 1 == 2700 * 21
+
+
+def test_generate_writes_a_parseable_stdf_by_default(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from pystdf.Importer import ImportSTDF
+
+    scenario_path = _write_tiny_scenario(tmp_path)
+    output_dir = tmp_path / "out"
+
+    exit_code = main(["generate", "-c", str(scenario_path), "-o", str(output_dir)])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert captured.err == ""
+    stdf_paths = list(output_dir.glob("*.stdf"))
+    assert len(stdf_paths) == 1
+    assert re.fullmatch(r"GEN55LOGIC_GEN55LOGIC-L001_CP_\d{8}T\d{12}Z\.stdf", stdf_paths[0].name)
+    assert f"exported: {stdf_paths[0]}" in captured.out
+    records = ImportSTDF(str(stdf_paths[0]))
+    names = [record.__class__.__name__.upper() for record, _ in records]
+    assert names[0] == "FAR"
+    assert "MIR" in names
+    assert names[-1] == "MRR"
+
+
+def test_generate_honours_cp_stdf_false(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    scenario_path = _write_tiny_scenario(tmp_path, cp_stdf=False)
+    output_dir = tmp_path / "out"
+
+    exit_code = main(["generate", "-c", str(scenario_path), "-o", str(output_dir)])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert captured.err == ""
+    assert not list(output_dir.glob("*.stdf"))
+    assert list(output_dir.glob("*.csv"))
+
+
+def test_generate_maps_stdf_export_failures_to_exit_three(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scenario_path = _write_tiny_scenario(tmp_path, cp_csv=False)
+
+    def _fail_stdf(*args: object, **kwargs: object) -> tuple[Path, ...]:
+        raise ExportError("STDF disk is full")
+
+    monkeypatch.setattr("silicondraft.api.export_cp_stdf", _fail_stdf)
+
+    exit_code = main(["generate", "-c", str(scenario_path), "-o", str(tmp_path / "out")])
+
+    captured = capsys.readouterr()
+    assert exit_code == 3
+    assert "export failed: STDF disk is full" in captured.err
+
+
+def test_generate_formats_selects_the_requested_artifacts(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    scenario_path = _write_tiny_scenario(tmp_path)
+
+    stdf_dir = tmp_path / "stdf"
+    assert (
+        main(
+            [
+                "generate",
+                "-c",
+                str(scenario_path),
+                "-o",
+                str(stdf_dir),
+                "--formats",
+                "stdf",
+            ]
+        )
+        == 0
+    )
+    assert list(stdf_dir.glob("*.stdf"))
+    assert not list(stdf_dir.glob("*.csv"))
+
+    csv_dir = tmp_path / "csv"
+    assert main(["generate", "-c", str(scenario_path), "-o", str(csv_dir), "--formats", "csv"]) == 0
+    assert list(csv_dir.glob("*.csv"))
+    assert not list(csv_dir.glob("*.stdf"))
+    assert capsys.readouterr().err == ""
+
+
+def test_generate_formats_can_override_a_scenario_switch(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    scenario_path = _write_tiny_scenario(tmp_path, cp_stdf=False)
+    output_dir = tmp_path / "out"
+
+    exit_code = main(
+        ["generate", "-c", str(scenario_path), "-o", str(output_dir), "--formats", "stdf"]
+    )
+
+    assert exit_code == 0
+    assert capsys.readouterr().err == ""
+    assert list(output_dir.glob("*.stdf"))
+    assert not list(output_dir.glob("*.csv"))
+
+
+def test_generate_rejects_unknown_formats(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    scenario_path = _write_tiny_scenario(tmp_path)
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(
+            [
+                "generate",
+                "-c",
+                str(scenario_path),
+                "-o",
+                str(tmp_path / "out"),
+                "--formats",
+                "stdf,xml",
+            ]
+        )
+
+    captured = capsys.readouterr()
+    assert exc_info.value.code == 1
+    assert "unsupported export format(s): xml; supported: stdf, csv" in captured.err
+    assert not (tmp_path / "out").exists()
 
 
 def test_generate_writes_both_cp_csv_layouts(

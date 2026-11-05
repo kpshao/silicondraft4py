@@ -14,8 +14,8 @@ msgstr "生成可复现的合成 CP/WAT 测试数据。"
 msgid "message language: en or zh"
 msgstr "消息语言：en 或 zh"
 
-msgid "generate data and write CSV and ground truth"
-msgstr "生成数据并写出 CSV 与真值"
+msgid "generate data and write STDF, CSV, and ground truth"
+msgstr "生成数据并写出 STDF、CSV 与真值"
 
 msgid "path to the scenario YAML file"
 msgstr "场景 YAML 文件路径"
@@ -25,6 +25,9 @@ msgstr "导出文件目录"
 
 msgid "skip the per-die ground truth CSV.GZ (the JSON manifest is still written)"
 msgstr "跳过逐 die 真值 CSV.GZ（仍写出 JSON 清单）"
+
+msgid "comma-separated export formats: stdf, csv"
+msgstr "逗号分隔的导出格式：stdf, csv"
 
 msgid "validate a scenario YAML file"
 msgstr "校验场景 YAML 文件"
@@ -200,14 +203,48 @@ msgstr "test_num {test_num} 已被 '{other}' 使用"
 msgid "cannot export to {path}: {error}"
 msgstr "无法导出到 {path}：{error}"
 
-msgid "no export format requested; supported: csv"
-msgstr "未请求导出格式；支持：csv"
+msgid "no export format requested; supported: {formats}"
+msgstr "未请求导出格式；支持：{formats}"
 
-msgid "unsupported export format(s): {formats}; supported: csv"
-msgstr "不支持的导出格式：{formats}；支持：csv"
+msgid "unsupported export format(s): {formats}; supported: {supported}"
+msgstr "不支持的导出格式：{formats}；支持：{supported}"
 
 msgid "unsupported CP CSV layout: {layout}; supported: {supported}"
 msgstr "不支持的 CP CSV 布局：{layout}；支持：{supported}"
+
+# STDF export
+msgid "cannot write STDF file {path}: {error}"
+msgstr "无法写入 STDF 文件 {path}：{error}"
+
+msgid "cannot encode STDF record: {error}"
+msgstr "无法编码 STDF 记录：{error}"
+
+msgid "STDF SITE_NUM {value} is outside the U*1 range 1-254"
+msgstr "STDF SITE_NUM {value} 超出 U*1 范围 1-254"
+
+msgid "STDF record is too long ({size} bytes)"
+msgstr "STDF 记录过长（{size} 字节）"
+
+msgid "unknown {kind} bin {bin}"
+msgstr "未知 {kind} bin {bin}"
+
+msgid "timestamp {value} does not fit an STDF U*4 field"
+msgstr "时间戳 {value} 超出 STDF U*4 字段范围"
+
+msgid "STDF field {field} value {value} is outside the I*2 range"
+msgstr "STDF 字段 {field} 的值 {value} 超出 I*2 范围"
+
+msgid "STDF fixed string {value!r} is not ASCII"
+msgstr "STDF 定长字符串 {value!r} 不是 ASCII"
+
+msgid "STDF fixed string {value!r} must be one byte"
+msgstr "STDF 定长字符串 {value!r} 必须为一个字节"
+
+msgid "STDF field {field} is not ASCII: {value!r}"
+msgstr "STDF 字段 {field} 不是 ASCII：{value!r}"
+
+msgid "STDF field {field} is longer than 255 bytes"
+msgstr "STDF 字段 {field} 超过 255 字节"
 
 # Scenario loading and saving
 msgid "cannot write scenario file {path}: {error}"

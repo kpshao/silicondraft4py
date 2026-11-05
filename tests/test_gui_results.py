@@ -213,14 +213,16 @@ def test_results_panel_pages_through_die_rows(qtbot: QtBot) -> None:
     assert not panel.next_button.isEnabled()
 
 
-def test_export_dialog_collects_the_directory_and_csv(qtbot: QtBot, tmp_path: Path) -> None:
+def test_export_dialog_collects_the_directory_and_formats(qtbot: QtBot, tmp_path: Path) -> None:
     from silicondraft.gui.export_dialog import ExportDialog
 
     dialog = ExportDialog(tmp_path)
     qtbot.addWidget(dialog)
 
     assert dialog.output_dir() == tmp_path
-    assert dialog.format_label.text() == "CSV"
+    assert dialog.stdf_checkbox.text() == "STDF"
+    assert dialog.csv_checkbox.text() == "CSV"
+    assert dialog.formats() == ("stdf", "csv")
 
     dialog.set_output_dir(tmp_path / "nested")
     dialog.accept()
@@ -245,7 +247,9 @@ def test_export_dialog_requires_a_directory(qtbot: QtBot, tmp_path: Path) -> Non
     assert dialog.result() == QDialog.DialogCode.Accepted
 
 
-def _write_scenario(tmp_path: Path, *, csv_enabled: bool = True) -> Path:
+def _write_scenario(
+    tmp_path: Path, *, csv_enabled: bool = True, stdf_enabled: bool = False
+) -> Path:
     document = {
         "schema_version": 1,
         "product": {"name": "TEST55"},
@@ -256,6 +260,7 @@ def _write_scenario(tmp_path: Path, *, csv_enabled: bool = True) -> Path:
         },
         "lots": {"count": 1, "wafers_per_lot": 1},
         "export": {
+            "cp_stdf": stdf_enabled,
             "cp_csv": csv_enabled,
             "wat_csv": False,
             "ground_truth": False,
@@ -371,7 +376,7 @@ def test_export_failure_is_reported(qtbot: QtBot, tmp_path: Path) -> None:
     assert window.export_action.isEnabled()
 
 
-def test_export_fails_clearly_when_no_csv_output_is_enabled(qtbot: QtBot, tmp_path: Path) -> None:
+def test_export_fails_clearly_when_no_output_is_enabled(qtbot: QtBot, tmp_path: Path) -> None:
     window = MainWindow()
     qtbot.addWidget(window)
     window.show()
@@ -382,7 +387,7 @@ def test_export_fails_clearly_when_no_csv_output_is_enabled(qtbot: QtBot, tmp_pa
     assert not window.export_to_directory(out_dir)
 
     assert window.last_export_paths == ()
-    assert "no CSV export enabled" in window.statusBar().currentMessage()
+    assert "no export format enabled" in window.statusBar().currentMessage()
     assert window.issues_list.count() == 1
     assert not out_dir.exists()
     assert window.export_action.isEnabled()

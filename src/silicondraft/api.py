@@ -27,7 +27,7 @@ from .dataset import (
 )
 from .defects import apply_random_defects
 from .errors import ExportError, GenerationCancelled, ScenarioError
-from .exporters import export_cp_csv, export_wat_csv
+from .exporters import export_cp_csv, export_cp_stdf, export_wat_csv
 from .exporters.common import safe_filename_part, timestamp_token
 from .exporters.groundtruth import (
     ManifestBuilder,
@@ -55,7 +55,7 @@ from .latent import (
     wat_latent,
 )
 from .patterns import apply_pattern, select_yield_failure_item
-from .scenario.models import CSV_LAYOUTS, CsvLayout, Lots, Scenario
+from .scenario.models import CSV_LAYOUTS, EXPORT_FORMATS, CsvLayout, Lots, Scenario
 from .scenario.validation import validate_scenario_model
 
 _TAG_LOT_FACTOR = 0x10
@@ -178,6 +178,12 @@ def export(
 ) -> tuple[Path, ...]:
     """Export a generation result and return the paths written.
 
+    ``formats`` selects the artifacts: ``"csv"`` writes the CP and WAT CSV
+    files enabled by the scenario, while ``"stdf"`` writes one CP STDF V4 file
+    per lot. An explicit ``"stdf"`` overrides ``export.cp_stdf`` for this run,
+    so the GUI export dialog and the CLI's ``--formats`` can enable STDF
+    without rewriting the scenario.
+
     The keyword overrides apply to this run only. ``include_die_truth``
     overrides ``export.include_die_truth`` (the CLI's ``--no-die-truth``
     passes ``False``) while the manifest is still written when ground truth
@@ -187,13 +193,18 @@ def export(
     """
     _check_formats(formats)
     _check_cp_csv_layout(cp_csv_layout)
+    options = result.scenario.export
+    requested = {format_name.lower() for format_name in formats}
     out = Path(out_dir)
     paths: list[Path] = []
     try:
-        if result.scenario.export.cp_csv:
-            paths.extend(export_cp_csv(result, out, layout=cp_csv_layout))
-        if result.scenario.export.wat_csv:
-            paths.extend(export_wat_csv(result, out))
+        if "csv" in requested:
+            if options.cp_csv:
+                paths.extend(export_cp_csv(result, out, layout=cp_csv_layout))
+            if options.wat_csv:
+                paths.extend(export_wat_csv(result, out))
+        if "stdf" in requested:
+            paths.extend(export_cp_stdf(result, out))
         write_ground_truth = (
             result.scenario.export.ground_truth
             if include_ground_truth is None
@@ -218,6 +229,7 @@ def generate_to_directory(
     out_dir: str | PathLike[str],
     *,
     include_die_truth: bool | None = None,
+    formats: Sequence[str] | None = None,
 ) -> tuple[StreamingSummary, tuple[Path, ...]]:
     """Generate one lot at a time and write its artifacts before releasing it.
 
@@ -225,9 +237,21 @@ def generate_to_directory(
     arrays, so peak memory stays bounded by the largest single lot. It is the
     CLI's generation path; the in-memory :func:`generate` remains available for
     API callers that need the complete dataset.
+
+    ``formats`` selects the artifacts the same way :func:`export` does. When
+    it is ``None`` the scenario's ``export`` options choose the formats.
     """
+    if formats is not None:
+        _check_formats(formats)
     prepared = _prepare(scenario)
     scenario_config = scenario.export
+    requested = (
+        set(scenario_config.enabled_formats())
+        if formats is None
+        else {name.lower() for name in formats}
+    )
+    write_csv = "csv" in requested
+    write_stdf = "stdf" in requested
     out = Path(out_dir)
     timestamp = timestamp_token(prepared.generated_at)
     product = safe_filename_part(scenario.product.name)
@@ -261,10 +285,13 @@ def generate_to_directory(
                 pattern_reports=(),
                 generated_at=prepared.generated_at,
             )
-            if scenario_config.cp_csv:
-                paths.extend(export_cp_csv(shell, out))
-            if scenario_config.wat_csv:
-                paths.extend(export_wat_csv(shell, out))
+            if write_csv:
+                if scenario_config.cp_csv:
+                    paths.extend(export_cp_csv(shell, out))
+                if scenario_config.wat_csv:
+                    paths.extend(export_wat_csv(shell, out))
+            if write_stdf:
+                paths.extend(export_cp_stdf(shell, out))
             die_truth_file: str | None = None
             if builder is not None and write_die_truth:
                 die_truth_file = die_truth_filename(product, data.cp_lot.lot_id, timestamp)
@@ -483,13 +510,18 @@ def _iter_lots(
 
 def _check_formats(formats: Sequence[str]) -> None:
     requested = tuple(format_name.lower() for format_name in formats)
+    supported = ", ".join(EXPORT_FORMATS)
     if not requested:
-        raise ExportError(_("no export format requested; supported: csv"))
-    unsupported = sorted({format_name for format_name in requested if format_name != "csv"})
+        raise ExportError(
+            _("no export format requested; supported: {formats}").format(formats=supported)
+        )
+    unsupported = sorted(
+        {format_name for format_name in requested if format_name not in EXPORT_FORMATS}
+    )
     if unsupported:
         raise ExportError(
-            _("unsupported export format(s): {formats}; supported: csv").format(
-                formats=", ".join(unsupported)
+            _("unsupported export format(s): {formats}; supported: {supported}").format(
+                formats=", ".join(unsupported), supported=supported
             )
         )
 

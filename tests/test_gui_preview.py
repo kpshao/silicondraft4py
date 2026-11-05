@@ -289,6 +289,7 @@ def _write_preview_scenario(
         },
         "lots": {"count": 1, "wafers_per_lot": 1},
         "export": {
+            "cp_stdf": False,
             "cp_csv": True,
             "cp_csv_layout": "long",
             "wat_csv": False,

@@ -211,7 +211,7 @@ def test_streaming_default_long_matches_the_in_memory_export(tmp_path: Path) -> 
     result = generate(scenario)
     in_memory_paths = export(result, tmp_path / "full")
 
-    summary, stream_paths = generate_to_directory(scenario, tmp_path / "stream")
+    summary, stream_paths = generate_to_directory(scenario, tmp_path / "stream", formats=("csv",))
 
     assert summary.lot_count == 1
     assert len(in_memory_paths) == len(stream_paths) == 1

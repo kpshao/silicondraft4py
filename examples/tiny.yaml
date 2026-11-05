@@ -23,7 +23,7 @@ items:
   preset: generic_cmos_logic_55nm
 
 export:
-  cp_stdf: false
+  cp_stdf: true
   cp_csv: true
   cp_csv_layout: long
   wat_csv: false

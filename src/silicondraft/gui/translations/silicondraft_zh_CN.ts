@@ -81,7 +81,12 @@
             <translation>格式</translation>
         </message>
         <message>
-            <location filename="../export_dialog.py" line="105" />
+            <location filename="../export_dialog.py" line="119" />
+            <source>STDF</source>
+            <translation>STDF</translation>
+        </message>
+        <message>
+            <location filename="../export_dialog.py" line="120" />
             <source>CSV</source>
             <translation>CSV</translation>
         </message>
@@ -129,6 +134,11 @@
             <location filename="../export_dialog.py" line="172" />
             <source>Choose an output directory.</source>
             <translation>请选择输出目录。</translation>
+        </message>
+        <message>
+            <location filename="../export_dialog.py" line="227" />
+            <source>Choose at least one export format.</source>
+            <translation>请至少选择一种导出格式。</translation>
         </message>
         <message>
             <location filename="../export_dialog.py" line="183" />
@@ -184,9 +194,9 @@
             <translation>取消中…</translation>
         </message>
         <message>
-            <location filename="../main_window.py" line="267" />
-            <source>the scenario has no CSV export enabled.</source>
-            <translation>该场景未启用 CSV 导出。</translation>
+            <location filename="../main_window.py" line="278" />
+            <source>the scenario has no export format enabled.</source>
+            <translation>该场景未启用任何导出格式。</translation>
         </message>
         <message>
             <location filename="../main_window.py" line="266" />

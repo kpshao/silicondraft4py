@@ -75,7 +75,7 @@ def test_streaming_export_matches_the_in_memory_export(tmp_path: Path) -> None:
     generated = generate(scenario)
     full_paths = export(generated, tmp_path / "full")
 
-    summary, stream_paths = generate_to_directory(scenario, tmp_path / "stream")
+    summary, stream_paths = generate_to_directory(scenario, tmp_path / "stream", formats=("csv",))
 
     assert summary.lot_count == len(generated.lots)
     assert summary.wafer_count == sum(len(lot.wafers) for lot in generated.lots)

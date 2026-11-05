@@ -247,24 +247,27 @@ class MainWindow(QMainWindow):
         self,
         out_dir: str | Path,
         *,
+        formats: Sequence[str] | None = None,
         cp_csv_layout: CsvLayout | None = None,
         include_ground_truth: bool | None = None,
         include_die_truth: bool | None = None,
     ) -> bool:
-        """Export the current result's CSV files and report the outcome.
+        """Export the current result and report the outcome.
 
-        The keyword overrides apply to this export run only; the GUI passes the
-        choices from :class:`ExportDialog` without rewriting the scenario.
+        ``formats`` defaults to every format the scenario enables. The keyword
+        overrides apply to this export run only; the GUI passes the choices
+        from :class:`ExportDialog` without rewriting the scenario.
         """
         result = self._last_result
         if result is None or self._worker is not None:
             return False
         options = result.scenario.export
-        if not (options.cp_csv or options.wat_csv):
+        requested = options.enabled_formats() if formats is None else tuple(formats)
+        if not requested:
             self._last_export_paths = ()
             self._show_error(
                 lambda: self.tr("Export failed: {message}").format(
-                    message=self.tr("the scenario has no CSV export enabled.")
+                    message=self.tr("the scenario has no export format enabled.")
                 )
             )
             return False
@@ -272,7 +275,7 @@ class MainWindow(QMainWindow):
             paths = export(
                 result,
                 out_dir,
-                formats=("csv",),
+                formats=requested,
                 cp_csv_layout=cp_csv_layout,
                 include_ground_truth=include_ground_truth,
                 include_die_truth=include_die_truth,
@@ -606,6 +609,7 @@ class MainWindow(QMainWindow):
         if out_dir is not None:
             self.export_to_directory(
                 out_dir,
+                formats=dialog.formats(),
                 cp_csv_layout=dialog.cp_csv_layout(),
                 include_ground_truth=dialog.include_ground_truth(),
                 include_die_truth=dialog.include_die_truth(),
