@@ -2,7 +2,9 @@
 
 对应 issue [#16](https://github.com/kpshao/silicondraft4py/issues/16)（T15）。V1 以 PyInstaller `onedir` 为工作假设，最终打包方案（PyInstaller vs Nuitka）仍延后决定（见 [v1-spec.md](v1-spec.md) §5、§10）。本 spike 验证冻结应用能启动、生成并导出，并落实 PySide6-Essentials 与 Qt 的 LGPL 合规材料。
 
-## 结论（macOS，2026-11-05 实测）
+## 结论（2026-11-05 实测）
+
+### macOS（本地实测）
 
 | 指标 | 结果 |
 | --- | --- |
@@ -15,7 +17,20 @@
 | 冻结冒烟 | 通过：加载 `examples/tiny.yaml`，生成 1 lot / 2,700 die，导出 CP CSV + CP STDF |
 | 包内依赖 | PySide6-Essentials、shiboken6、numpy、pydantic（含 pydantic-core、annotated-types、typing-inspection、typing-extensions）、PyYAML、pyqtgraph、colorama |
 
-Windows 产物由 [`.github/workflows/package.yml`](../../.github/workflows/package.yml) 在 `windows-latest` 上跑同一脚本生成；本机为 macOS，未做 Windows 实机验证，验收项在 CI 跑通前保持未勾选。Windows 预期布局为 `dist/SiliconDraft/SiliconDraft.exe`。
+### Windows（GitHub Actions `windows-latest`）
+
+| 指标 | 结果 |
+| --- | --- |
+| 构建平台 | Windows Server（`windows-latest`），AMD64 |
+| 工具版本 | Python 3.13.17、PySide6-Essentials 6.12.0、PyInstaller 6.22.3 |
+| 产物 | `dist/SiliconDraft/SiliconDraft.exe`（onedir） |
+| 包体积 | 153.9 MiB，1,011 个文件；上传 artifact 的 zip 为 61.8 MiB |
+| 构建耗时 | 75.6 s（CI runner 上的 `--clean` 构建） |
+| 启动时间 | 0.86 s（offscreen 冒烟） |
+| 冻结冒烟 | 通过：1 lot / 2,700 die，导出 CP CSV + CP STDF |
+| 包内依赖 | 与 macOS 相同的 11 个发行版 |
+
+Windows 结果来自 [`Package` workflow run 41958920791](https://github.com/kpshao/silicondraft4py/actions/runs/41958920791)；两个平台的脚本、许可证校验与冒烟结果一致。
 
 ## 使用
 
@@ -96,7 +111,7 @@ SiliconDraft --smoke-test --scenario <scenario.yaml> --output <dir>
 
 ## 已知问题与后续
 
-- **Windows 未实机验证**：脚本与 CI 已就绪；需在 `windows-latest` 跑通后补记体积/启动时间并勾选验收项。
+- **Windows 仅 CI runner 验证**：`windows-latest` 为 GitHub 托管的 Windows Server 环境，未在物理桌面或 Windows 11 本地机器上人工启动验证。
 - **Intel macOS 未覆盖**：本机与 `macos-latest` 均为 arm64；规格支持 Apple Silicon + Intel，若需 Intel 产物应在 Intel runner 上构建或产出 universal2 包。
 - **原生平台插件未实测**：冻结冒烟使用 `offscreen` 插件；macOS 的 cocoa 与 Windows 的 qwindows 插件虽在包内并通过存在性校验，但未在真实桌面会话中启动验证。
 - **未签名/未公证**：macOS 包为 ad-hoc 签名，下载后受 Gatekeeper 隔离；正式发布需 Developer ID 签名与 notarization。Windows 未做代码签名，SmartScreen 会提示。
