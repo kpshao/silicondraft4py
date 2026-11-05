@@ -170,7 +170,7 @@ def _make_complete_bundle(tmp_path: Path) -> BundleLayout:
     platforms = internal / "PySide6" / "Qt" / "plugins" / "platforms"
     platforms.mkdir(parents=True)
     (platforms / "qoffscreen.dll").write_text("", encoding="utf-8")
-    qt_translations = internal / "PySide6" / "Qt" / "translations"
+    qt_translations = internal / "PySide6" / "translations"
     qt_translations.mkdir(parents=True)
     (qt_translations / "qtbase_zh_CN.qm").write_text("", encoding="utf-8")
     return layout

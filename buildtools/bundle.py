@@ -53,7 +53,9 @@ RUNTIME_ROOTS: tuple[str, ...] = (
 REQUIRED_DATA_FILES: tuple[tuple[str, ...], ...] = (
     ("silicondraft", "gui", "translations", "silicondraft_zh_CN.qm"),
     ("silicondraft", "locale", "zh_CN", "LC_MESSAGES", "silicondraft.mo"),
-    ("PySide6", "Qt", "translations", "qtbase_zh_CN.qm"),
+    # PyInstaller places Qt data under PySide6/Qt on macOS/Linux but under
+    # PySide6 on Windows, so match this one by file name only.
+    ("qtbase_zh_CN.qm",),
 )
 
 
