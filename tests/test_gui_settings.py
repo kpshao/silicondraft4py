@@ -53,6 +53,10 @@ def test_window_layout_is_saved_and_restored(qtbot: QtBot, tmp_path: Path) -> No
     window.show()
     window.resize(640, 480)
     window.splitter.setSizes([240, 400])
+    # Some platforms enforce larger minimum sizes than requested; compare the
+    # layout that was actually saved rather than the requested dimensions.
+    qtbot.wait(50)
+    saved_size = window.size()
     saved_sizes = window.splitter.sizes()
 
     window.close()
@@ -61,9 +65,9 @@ def test_window_layout_is_saved_and_restored(qtbot: QtBot, tmp_path: Path) -> No
     restored = MainWindow(settings=_settings(tmp_path))
     qtbot.addWidget(restored)
     restored.show()
+    qtbot.wait(50)
 
-    assert restored.size().width() == 640
-    assert restored.size().height() == 480
+    assert restored.size() == saved_size
     left, right = restored.splitter.sizes()
     assert left > 0 and right > 0
     assert restored.splitter.sizes() == saved_sizes
