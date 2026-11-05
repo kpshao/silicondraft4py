@@ -188,7 +188,9 @@ CLI 消息默认英文；加 `--lang zh`（放在子命令前后均可）输出�
 uv run silicondraft --lang zh validate -c scenario.yaml
 ```
 
-`generate` 默认按 scenario 的 `export` 选项写出产物；`--formats stdf,csv` 可按本次运行覆盖格式选择（例如 `--formats stdf` 只写 STDF，即使 scenario 中关闭了 `cp_stdf`）。
+`generate` 默认按 scenario 的 `export` 选项写出产物；`--formats stdf,csv` 可按本次运行覆盖格式选择（例如 `--formats stdf` 只写 STDF，即使 scenario 中关闭了 `cp_stdf`）。`--seed N` 覆盖 scenario 中记录的随机种子（取值 0–2^64−1），便于用同一配置做多组随机实验。
+
+退出码约定：`0` 成功；`1` 配置错误（scenario、命令行参数或语义校验失败）；`2` 生成错误；`3` 导出错误。
 
 输出 JSON Schema：
 
@@ -488,7 +490,9 @@ CLI messages are English by default; add `--lang zh` (before or after the subcom
 uv run silicondraft --lang zh validate -c scenario.yaml
 ```
 
-`generate` follows the scenario's `export` options by default; `--formats stdf,csv` overrides the format selection for this run (for example `--formats stdf` writes only STDF even when the scenario disables `cp_stdf`).
+`generate` follows the scenario's `export` options by default; `--formats stdf,csv` overrides the format selection for this run (for example `--formats stdf` writes only STDF even when the scenario disables `cp_stdf`). `--seed N` overrides the seed recorded in the scenario (range 0–2^64−1), so one configuration can drive several random experiments.
+
+Exit codes: `0` success; `1` configuration error (scenario, command-line arguments, or semantic validation); `2` generation error; `3` export error.
 
 Print the JSON Schema:
 

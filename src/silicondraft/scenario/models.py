@@ -39,6 +39,9 @@ CSV_LAYOUTS: tuple[CsvLayout, ...] = ("long", "blocks", "both")
 WaferDiameterMm = Literal[150, 200, 300]
 WatSiteCount = Literal[5, 9, 13, 21]
 
+#: Inclusive upper bound for a scenario seed (unsigned 64-bit).
+MAX_SEED = 2**64 - 1
+
 #: Extent fields each pattern kind requires; the JSON Schema cannot express this.
 PATTERN_REQUIRED_EXTENTS: dict[str, tuple[str, ...]] = {
     "center_high": ("radius_mm",),
@@ -222,5 +225,5 @@ class Scenario(_StrictModel):
     defects: Defects = Field(default_factory=Defects)
     linkage: Linkage = Field(default_factory=Linkage)
     export: ExportOptions = Field(default_factory=ExportOptions)
-    seed: int = Field(ge=0, le=2**64 - 1)
+    seed: int = Field(ge=0, le=MAX_SEED)
     metadata: Metadata = Field(default_factory=Metadata)

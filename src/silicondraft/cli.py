@@ -17,7 +17,7 @@ from . import (
 )
 from .errors import ExportError, ScenarioError
 from .i18n import DEFAULT_LANGUAGE, _, install, reset
-from .scenario.models import EXPORT_FORMATS
+from .scenario.models import EXPORT_FORMATS, MAX_SEED
 
 LANGUAGE_CHOICES = ("en", "zh")
 
@@ -42,6 +42,19 @@ def _add_language_argument(parser: argparse.ArgumentParser, *, default: str | No
         default=argparse.SUPPRESS if default is None else default,
         help=_("message language: en or zh"),
     )
+
+
+def _seed_value(value: str) -> int:
+    """Parse a ``--seed`` override and enforce the scenario seed range."""
+    try:
+        seed = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(_("seed must be an integer")) from exc
+    if not 0 <= seed <= MAX_SEED:
+        raise argparse.ArgumentTypeError(
+            _("seed must be between 0 and {maximum}").format(maximum=MAX_SEED)
+        )
+    return seed
 
 
 def _export_formats(value: str) -> tuple[str, ...]:
@@ -104,6 +117,13 @@ def build_parser() -> argparse.ArgumentParser:
         help=_("comma-separated export formats: stdf, csv"),
     )
     generate_parser.add_argument(
+        "--seed",
+        type=_seed_value,
+        default=None,
+        metavar="SEED",
+        help=_("override the scenario seed for this run"),
+    )
+    generate_parser.add_argument(
         "--no-die-truth",
         action="store_true",
         help=_("skip the per-die ground truth CSV.GZ (the JSON manifest is still written)"),
@@ -142,6 +162,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     args.output,
                     include_die_truth=False if args.no_die_truth else None,
                     formats=args.formats,
+                    seed=args.seed,
                 )
             case "validate":
                 return _validate(args.config)
@@ -172,12 +193,15 @@ def _generate(
     *,
     include_die_truth: bool | None = None,
     formats: Sequence[str] | None = None,
+    seed: int | None = None,
 ) -> int:
     try:
         scenario = load_scenario(scenario_path)
     except ScenarioError as exc:
         _print_invalid(scenario_path, exc.issues)
         return 1
+    if seed is not None:
+        scenario = scenario.model_copy(update={"seed": seed})
 
     try:
         summary, paths = generate_to_directory(
